@@ -1298,6 +1298,7 @@ function timeVal(m) { return m == null ? '' : fmtT(m); }
 /* ---------- hovedvisning ---------- */
 const TABS = [['grund', 'Grundplan (4 uger)'], ['uge', 'Ugeplan og fravær'], ['overblik', 'Overblik'], ['hensyn', 'Hensyn'], ['opg', 'Opgaver'], ['aar', 'Årsnorm'], ['pers', 'Personer og opsætning'], ['backup', 'Backup og hjælp']];
 function render() {
+    if (!afdObj(UI.afd) && S.afdelinger.length) UI.afd = S.afdelinger[0].id;
     setOpgIPlan(S.opgIPlan);
     $('#tabs').innerHTML = TABS.map(([k, n]) => '<button class="tab ' + (UI.tab === k ? 'on' : '') + '" data-act="tab" data-k="' + k + '">' + n + '</button>').join('');
     const v = { grund: viewGrund, uge: viewUge, overblik: viewOverblik, hensyn: viewHensyn, opg: viewOpgaver, aar: viewAarsnorm, pers: viewPersoner, backup: viewBackup }[UI.tab];
@@ -1850,13 +1851,41 @@ function viewHensyn() {
 }
 
 /* ================= PERSONER OG OPSÆTNING ================= */
+function afdNavnFejl(n, gammel) {
+    n = String(n).trim();
+    if (!n) return 'Skriv et navn til afdelingen';
+    if (/[|:*]/.test(n)) return 'Navnet m\u00e5 ikke indeholde tegnene | : eller *';
+    if (n.length > 30) return 'Navnet er for langt (h\u00f8jst 30 tegn)';
+    if (S.afdelinger.some(a => a.id !== gammel && a.id.toLowerCase() === n.toLowerCase())) return 'Der findes allerede en afdeling med det navn';
+    return null;
+}
+function omdoebAfd(gammel, nyt) {
+    const a = afdObj(gammel); a.id = nyt; a.navn = nyt;
+    S.personer.forEach(p => { if (p.afd === gammel) p.afd = nyt; });
+    (S.hensyn.bemanding || []).forEach(r => { if (r.afd === gammel) r.afd = nyt; });
+    (S.arkiv || []).forEach(v => Object.values(v.pers || {}).forEach(x => { if (x.afd === gammel) x.afd = nyt; }));
+    (S.opggrp || []).forEach(g => {
+        if (g.maal === 'a:' + gammel) g.maal = 'a:' + nyt; else if (g.maal && g.maal.startsWith('s:' + gammel + '|')) g.maal = 's:' + nyt + g.maal.slice(('s:' + gammel).length);
+        if (g.label) g.label = g.label.split('(' + gammel + ')').join('(' + nyt + ')').replace('Alle i ' + gammel, 'Alle i ' + nyt);
+    });
+    if (UI.afd === gammel) UI.afd = nyt; if (UI.hAfd === gammel) UI.hAfd = nyt; if (UI.opgF && UI.opgF.afd === gammel) UI.opgF.afd = nyt;
+}
+function afdPanelHtml() {
+    let h = '<div class="panel"><h4>Afdelinger</h4><p class="muted">Afdelingerne er fanerne \u00f8verst (fx VS, BH eller K\u00f8kken). Du kan \u00e6ndre navnene, og de \u00e6ndres alle steder (hensyn, opgaver, gamle grundplaner). En person flyttes til en anden afdeling med feltet \u00abAfdeling\u00bb i personlisten nedenfor. En afdeling kan f\u00f8rst slettes, n\u00e5r den er tom.</p><table class="mini"><thead><tr><th>Navn</th><th>Stuer</th><th>Personer</th><th></th></tr></thead><tbody>';
+    for (const a of S.afdelinger) {
+        const n = S.personer.filter(p => p.afd === a.id).length;
+        h += '<tr><td><input data-chg="afd-navn" data-a="' + esc(a.id) + '" value="' + esc(a.navn) + '" style="width:14em"></td><td class="ctr">' + a.stuer.length + '</td><td class="ctr">' + n + '</td><td>' + (n === 0 && S.afdelinger.length > 1 ? '<button class="btn sm" data-act="afd-slet" data-a="' + esc(a.id) + '">Slet</button>' : '') + '</td></tr>';
+    }
+    return h + '</tbody></table><div class="form"><b>Ny afdeling:</b><input id="nyAfd" placeholder="fx K\u00f8kken" style="width:12em"><button class="btn pri" data-act="afd-ny">Opret afdeling</button><span class="muted">Der oprettes en stue med samme navn, som du kan omd\u00f8be eller supplere nedenfor.</span></div></div>';
+}
 function viewPersoner() {
     let h = '<div class="intro">Her rettes personer, stuer og tekster. <b>Auto</b> = må programmet foreslå vagter og afløsning til personen (slå fra for personer, der ikke skal have vagter foreslået, fx køkken).</div>';
     h += '<div class="panel"><h4>Uge 1 starter</h4><div class="form"><label>Mandag i plan-uge 1 <input type="date" id="startD" data-chg="start" value="' + S.startDato + '"></label><span class="muted">Bruges af ugeplanen til at finde ud af, hvilken fredag der gælder.</span></div></div>';
+    h += afdPanelHtml();
     for (const a of S.afdelinger) {
-        h += '<div class="panel"><h4>' + esc(a.navn) + '</h4><table class="mini"><thead><tr><th>Navn</th><th>Stue</th><th title="Timer pr. uge i vagtplanen (med børn)">Timer/uge</th><th title="Ansættelsesgrad i timer pr. uge. Bruges til årsnorm og dagsnorm. Tomt = tallet i navnet">Ansættelse</th><th title="Fast timetal: Timer/uge beregnes ikke automatisk for personen">Fast timer</th><th>Kvalifikation</th><th>Auto</th><th>Note</th><th></th></tr></thead><tbody>';
+        h += '<div class="panel"><h4>' + esc(a.navn) + '</h4><table class="mini"><thead><tr><th>Navn</th><th title="Flyt personen til en anden afdeling">Afdeling</th><th>Stue</th><th title="Timer pr. uge i vagtplanen (med børn)">Timer/uge</th><th title="Ansættelsesgrad i timer pr. uge. Bruges til årsnorm og dagsnorm. Tomt = tallet i navnet">Ansættelse</th><th title="Fast timetal: Timer/uge beregnes ikke automatisk for personen">Fast timer</th><th>Kvalifikation</th><th>Auto</th><th>Note</th><th></th></tr></thead><tbody>';
         S.personer.filter(p => p.afd === a.id).forEach(p => {
-            h += '<tr><td><input data-chg="pf" data-f="navn" data-p="' + p.id + '" value="' + esc(p.navn) + '"></td><td><select data-chg="pf" data-f="stue" data-p="' + p.id + '">' + a.stuer.map(s => '<option ' + (s === p.stue ? 'selected' : '') + '>' + esc(s) + '</option>').join('') + (a.stuer.includes(p.stue) ? '' : '<option selected>' + esc(p.stue) + '</option>') + '</select></td>'
+            h += '<tr><td><input data-chg="pf" data-f="navn" data-p="' + p.id + '" value="' + esc(p.navn) + '"></td><td><select data-chg="pf" data-f="afd" data-p="' + p.id + '">' + S.afdelinger.map(x => '<option value="' + esc(x.id) + '" ' + (x.id === p.afd ? 'selected' : '') + '>' + esc(x.navn) + '</option>').join('') + '</select></td><td><select data-chg="pf" data-f="stue" data-p="' + p.id + '">' + a.stuer.map(s => '<option ' + (s === p.stue ? 'selected' : '') + '>' + esc(s) + '</option>').join('') + (a.stuer.includes(p.stue) ? '' : '<option selected>' + esc(p.stue) + '</option>') + '</select></td>'
                 + '<td><input data-chg="pf" data-f="timer" data-p="' + p.id + '" value="' + fmtTim(p.timer) + '" style="width:4.5em"' + (S.timerAuto && !p.timerFast && p.timer > 0 ? ' readonly title="Beregnes automatisk fra ansættelse og opgaver"' : '') + '></td><td><input data-chg="pf" data-f="ansaet" data-p="' + p.id + '" value="' + (p.ansaet > 0 ? String(p.ansaet).replace('.', ',') : '') + '" placeholder="' + String(ansaetOf(p)).replace('.', ',') + '" style="width:4.5em"></td><td class="ctr"><input type="checkbox" data-chg="pf" data-f="timerFast" data-p="' + p.id + '" ' + (p.timerFast ? 'checked' : '') + '></td><td><select data-chg="pf" data-f="kval" data-p="' + p.id + '">' + KVAL.map(k => '<option value="' + k + '" ' + (k === p.kval ? 'selected' : '') + '>' + (k || '–') + '</option>').join('') + '</select></td>'
                 + '<td class="ctr"><input type="checkbox" data-chg="pf" data-f="auto" data-p="' + p.id + '" ' + (p.auto !== false ? 'checked' : '') + '></td><td><input data-chg="pf" data-f="note" data-p="' + p.id + '" value="' + esc(p.note) + '" style="width:7em"></td>'
                 + '<td><button class="btn sm" data-act="p-up" data-p="' + p.id + '" title="Flyt op">↑</button><button class="btn sm" data-act="p-dn" data-p="' + p.id + '" title="Flyt ned">↓</button><button class="btn sm" data-act="p-del" data-p="' + p.id + '">Slet</button></td></tr>';
@@ -1971,6 +2000,16 @@ function act(a, t) {
             const el = document.createElement('div'); el.id = 'printAar'; el.innerHTML = pers.map(p => aarsnormSide(p, y)).join('');
             document.body.appendChild(el); document.body.classList.add('print-aar'); window.print();
             setTimeout(() => { document.body.classList.remove('print-aar'); el.remove(); }, 1500); break;
+        }
+        case 'afd-ny': {
+            const n = ($('#nyAfd').value || '').trim(), fejl = afdNavnFejl(n, null); if (fejl) { toast(fejl, true); break; }
+            snapshot(); S.afdelinger.push({ id: n, navn: n, stuer: [n], dagtekster: Array(8).fill('') }); logg('Afdeling ' + n + ' oprettet'); commit(); render(); toast('Afdelingen \u00ab' + n + '\u00bb er oprettet. Flyt personer hertil, eller opret nye medarbejdere i dens felt nedenfor.'); break;
+        }
+        case 'afd-slet': {
+            const a = afdObj(d.a); if (!a || S.personer.some(p => p.afd === a.id) || S.afdelinger.length < 2) break;
+            if (!confirm('Slet afdelingen \u00ab' + a.navn + '\u00bb? Hensyn for afdelingen slettes ogs\u00e5.')) break;
+            snapshot(); S.afdelinger = S.afdelinger.filter(x => x.id !== a.id); S.hensyn.bemanding = S.hensyn.bemanding.filter(r => r.afd !== a.id);
+            if (UI.afd === a.id) UI.afd = S.afdelinger[0].id; if (UI.hAfd === a.id) UI.hAfd = null; commit(); render(); toast('Afdelingen er slettet'); break;
         }
         case 'afb-add': {
             const p = S.personer.find(x => x.id === $('#abP').value), dage = parseFloat(String($('#abD').value).replace(',', '.')), fra = $('#abF').value, til = $('#abT').value;
@@ -2138,6 +2177,11 @@ function chg(k, t) {
         case 'an-ugermetode': snapshot(); S.aarsnorm.ugerMetode = t.value; commit(); render(); break;
         case 'an-metode': snapshot(); S.aarsnorm.metode = t.value; commit(); render(); break;
         case 'an-fm': snapshot(); S.aarsnorm.fravaerMode[d.t] = t.value; commit(); render(); break;
+        case 'afd-navn': {
+            const gammel = d.a, nyt = t.value.trim(), fejl = afdNavnFejl(nyt, gammel);
+            if (fejl) { toast(fejl, true); render(); break; } if (nyt === gammel) break;
+            snapshot(); omdoebAfd(gammel, nyt); logg('Afdelingen ' + gammel + ' omd\u00f8bt til ' + nyt); commit(); render(); toast('Afdelingen hedder nu ' + nyt); break;
+        }
         case 'opgfrek': { const e = t.value === 'engang'; $('#opgKw').style.display = e ? '' : 'none'; $('#opgTilW').style.display = e ? 'none' : ''; $('#opgHint').textContent = e ? 'Dagen v\u00e6lges i \u00abFra / dato\u00bb. Starttid er valgfri og g\u00f8r, at opgaven ses i ugeplanen p\u00e5 dagen.' : 'Datoer er valgfri (tom = g\u00e6lder altid).'; break; }
         case 'opg-filter': { const F = UI.opgF = UI.opgF || {}; F[d.k] = t.value; if (d.k === 'afd') F.stue = ''; render(); break; }
         case 'opg-f': {
@@ -2177,6 +2221,7 @@ function chg(k, t) {
             const p = S.personer.find(x => x.id === d.p), f = d.f; snapshot();
             if (f === 'timer') { const v = parseFloat(String(t.value).replace(',', '.')); if (!(v >= 0)) { toast('Ugyldigt timetal', true); render(); return; } p.timer = v; }
             else if (f === 'ansaet') { const s = String(t.value).trim().replace(',', '.'); if (s === '') delete p.ansaet; else { const v = parseFloat(s); if (!(v > 0 && v <= 48)) { toast('Ugyldigt timetal', true); render(); return; } p.ansaet = v; } render(); }
+            else if (f === 'afd') { const na = afdObj(t.value); if (!na) { undoStack.pop(); render(); return; } p.afd = na.id; p.stue = na.stuer[0] || ''; logg(p.navn + ' flyttet til ' + na.navn); commit(); render(); toast(p.navn + ' er flyttet til ' + na.navn + ' (stue: ' + (p.stue || 'ingen') + ')'); return; }
             else if (f === 'timerFast') { p.timerFast = t.checked; render(); }
             else if (f === 'auto') p.auto = t.checked; else p[f] = t.value.trim ? t.value.trim() : t.value;
             commit(); if (f === 'stue' || f === 'navn') render(); break;
