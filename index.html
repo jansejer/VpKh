@@ -594,8 +594,10 @@ function migrer() {
     commit();
 }
 function commit() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('Kunne ikke gemme i browseren – tag en backup!', true); } fsSchedule(); odSchedule(); dbxSchedule(); }
+function mergeVer(a, b) { const m = new Map(); (a || []).concat(b || []).forEach(v => { if (v && v.id && !m.has(v.id)) m.set(v.id, v); }); return [...m.values()]; }
+function adoptState(x) { const keep = (S && S.meta && S.meta.versioner) || []; S = x; if (!S.meta) S.meta = {}; S.meta.versioner = mergeVer(keep, x.meta && x.meta.versioner); }
 function snapshot() { undoStack.push(JSON.stringify(S)); if (undoStack.length > 60) undoStack.shift(); $('#btnUndo').disabled = false; }
-function undo() { if (!undoStack.length) return; S = JSON.parse(undoStack.pop()); commit(); render(); toast('Seneste ændring fortrudt'); $('#btnUndo').disabled = !undoStack.length; }
+function undo() { if (!undoStack.length) return; adoptState(JSON.parse(undoStack.pop())); commit(); render(); toast('Seneste ændring fortrudt'); $('#btnUndo').disabled = !undoStack.length; }
 function logg(t) { S.log.unshift({ t: new Date().toLocaleString('da-DK'), tekst: t }); if (S.log.length > 100) S.log.length = 100; }
 function afdObj(id) { return S.afdelinger.find(a => a.id === id); }
 
@@ -631,7 +633,7 @@ async function fsCheckNewer() {
     const fsT = (x.meta && x.meta.savedAt) || '', mine = (S.meta && S.meta.savedAt) || '';
     FS.lastSeen = fsT;
     if (fsT && fsT > mine && confirm('Filen "' + FS.handle.name + '" er nyere (gemt ' + fmtStempel(fsT) + ') end data i browseren' + (mine ? ' (gemt ' + fmtStempel(mine) + ')' : '') + '.\n\nOK = indlæs data fra filen\nAnnuller = behold browserens data (filen bliver overskrevet)')) {
-        S = x; if (!S.meta) S.meta = {}; migrer(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { } render();
+        adoptState(x); migrer(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { } render();
     }
 }
 async function fsPick() {
@@ -661,7 +663,7 @@ async function fsWrite(force) {
             const ct = cur && cur.meta && cur.meta.savedAt || '';
             if (ct && ct > FS.lastSeen) {
                 if (!confirm('Filen "' + FS.handle.name + '" er ændret et andet sted (gemt ' + fmtStempel(ct) + ') siden du sidst gemte.\n\nOK = overskriv filen med dine data\nAnnuller = indlæs filens data i stedet (dine seneste ændringer her går tabt)')) {
-                    S = cur; migrer(); FS.lastSeen = ct; localStorage.setItem(KEY, JSON.stringify(S)); FS.busy = false; render(); return;
+                    adoptState(cur); migrer(); FS.lastSeen = ct; localStorage.setItem(KEY, JSON.stringify(S)); FS.busy = false; render(); return;
                 }
             }
         }
@@ -758,7 +760,7 @@ async function odCheckNewer() {
     const fT = (x.meta && x.meta.savedAt) || '', mine = (S.meta && S.meta.savedAt) || '';
     OD.lastSeen = fT;
     if (fT && fT > mine && confirm('Filen i OneDrive er nyere (gemt ' + fmtStempel(fT) + ') end data p\u00e5 denne enhed' + (mine ? ' (gemt ' + fmtStempel(mine) + ')' : '') + '.\n\nOK = indl\u00e6s data fra OneDrive\nAnnuller = behold data p\u00e5 denne enhed (OneDrive bliver overskrevet)')) {
-        S = x; if (!S.meta) S.meta = {}; migrer(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { } render();
+        adoptState(x); migrer(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { } render();
     }
 }
 function odSchedule() { if (!OD.ok) return; clearTimeout(OD.timer); OD.timer = setTimeout(() => odWrite(false), 1500); }
@@ -770,7 +772,7 @@ async function odWrite(force) {
             const cur = await odRead(); const ct = cur && cur.meta && cur.meta.savedAt || '';
             if (ct && ct > OD.lastSeen) {
                 if (!confirm('Filen i OneDrive er \u00e6ndret et andet sted (gemt ' + fmtStempel(ct) + ') siden du sidst gemte.\n\nOK = overskriv OneDrive med dine data\nAnnuller = indl\u00e6s filens data i stedet (dine seneste \u00e6ndringer her g\u00e5r tabt)')) {
-                    S = cur; migrer(); OD.lastSeen = ct; localStorage.setItem(KEY, JSON.stringify(S)); OD.busy = false; render(); return;
+                    adoptState(cur); migrer(); OD.lastSeen = ct; localStorage.setItem(KEY, JSON.stringify(S)); OD.busy = false; render(); return;
                 }
             }
         }
@@ -847,16 +849,18 @@ async function dbxToken() {
     }
 }
 async function dbxFejl(r, hvad) { let t = ''; try { t = (await r.text()).replace(/\s+/g, ' ').slice(0, 220); } catch (e) { } return new Error('Dropbox (' + hvad + ') svarede ' + r.status + (t ? ': ' + t : '')); }
-async function dbxReq(kind, text) {
+function hdrSafe(o) { return JSON.stringify(o).replace(/[\u007f-\uffff]/g, c => '\\u' + ('0000' + c.charCodeAt(0).toString(16)).slice(-4)); }
+async function dbxReq(kind, text, path) {
     const t = await dbxToken(); if (!t) throw new Error('login');
-    const arg = kind === 'download' ? { path: '/vagtplan-data.json' } : { path: '/vagtplan-data.json', mode: 'overwrite', mute: true };
-    const hdr = { Authorization: 'Bearer ' + t, 'Dropbox-API-Arg': JSON.stringify(arg) };
+    path = path || '/vagtplan-data.json';
+    const arg = kind === 'download' ? { path } : { path, mode: 'overwrite', mute: true };
+    const hdr = { Authorization: 'Bearer ' + t, 'Dropbox-API-Arg': hdrSafe(arg) };
     if (kind === 'upload') hdr['Content-Type'] = 'application/octet-stream';
     let r = await fetch(DBXC.content + '/2/files/' + kind, { method: 'POST', headers: hdr, body: kind === 'upload' ? text : undefined });
     if (r.status !== 400) return r;
     const first = await r.text().catch(() => '');
     /* alternativ m\u00e5de (anbefalet af Dropbox til browsere): argumenterne i adressen i stedet for s\u00e6rlige headere */
-    const url = DBXC.content + '/2/files/' + kind + '?arg=' + encodeURIComponent(JSON.stringify(arg)) + '&authorization=' + encodeURIComponent('Bearer ' + t) + '&reject_cors_preflight=true';
+    const url = DBXC.content + '/2/files/' + kind + '?arg=' + encodeURIComponent(hdrSafe(arg)) + '&authorization=' + encodeURIComponent('Bearer ' + t) + '&reject_cors_preflight=true';
     r = await fetch(url, { method: 'POST', headers: kind === 'upload' ? { 'Content-Type': 'text/plain; charset=dropbox-cors-hack' } : {}, body: kind === 'upload' ? text : undefined });
     if (r.status === 400) { const second = await r.text().catch(() => ''); throw new Error('Dropbox svarede 400: ' + (first || second).replace(/\s+/g, ' ').slice(0, 220)); }
     return r;
@@ -874,7 +878,7 @@ async function dbxCheckNewer() {
     const fT = (x.meta && x.meta.savedAt) || '', mine = (S.meta && S.meta.savedAt) || '';
     DB.lastSeen = fT;
     if (fT && fT > mine && confirm('Filen i Dropbox er nyere (gemt ' + fmtStempel(fT) + ') end data p\u00e5 denne enhed' + (mine ? ' (gemt ' + fmtStempel(mine) + ')' : '') + '.\n\nOK = indl\u00e6s data fra Dropbox\nAnnuller = behold data p\u00e5 denne enhed (Dropbox bliver overskrevet)')) {
-        S = x; if (!S.meta) S.meta = {}; migrer(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { } render();
+        adoptState(x); migrer(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { } render();
     }
 }
 function dbxSchedule() { if (!DB.ok) return; clearTimeout(DB.timer); DB.timer = setTimeout(() => dbxWrite(false), 1500); }
@@ -886,7 +890,7 @@ async function dbxWrite(force) {
             const cur = await dbxRead(); const ct = cur && cur.meta && cur.meta.savedAt || '';
             if (ct && ct > DB.lastSeen) {
                 if (!confirm('Filen i Dropbox er \u00e6ndret et andet sted (gemt ' + fmtStempel(ct) + ') siden du sidst gemte.\n\nOK = overskriv Dropbox med dine data\nAnnuller = indl\u00e6s filens data i stedet (dine seneste \u00e6ndringer her g\u00e5r tabt)')) {
-                    S = cur; migrer(); DB.lastSeen = ct; localStorage.setItem(KEY, JSON.stringify(S)); DB.busy = false; render(); return;
+                    adoptState(cur); migrer(); DB.lastSeen = ct; localStorage.setItem(KEY, JSON.stringify(S)); DB.busy = false; render(); return;
                 }
             }
         }
@@ -913,6 +917,44 @@ async function dbxInit() {
 }
 function dbxLogout() { localStorage.removeItem('vagtplan_dbx'); DB.ok = false; DB.needLogin = false; DB.err = null; updateHeader(); render(); toast('Logget ud af Dropbox'); }
 window.addEventListener('online', () => { if (DB.ok && DB.offline) dbxWrite(false); });
+
+
+/* ---------- navngivne versioner i Dropbox (/versioner/<id>.json i app-mappen) ---------- */
+function verList() { return ((S.meta && S.meta.versioner) || []).slice().sort((a, b) => a.tid < b.tid ? 1 : -1); }
+function dbxKlar() { return odAvailable() && dbxStored() && DB.ok && !DB.needLogin; }
+async function verSave(navn) {
+    if (!dbxKlar()) { toast('Log ind p\u00e5 Dropbox f\u00f8rst', true); return; }
+    navn = (navn || '').trim() || ('Version ' + todayISO());
+    const id = 'v' + Date.now().toString(36);
+    const copy = JSON.parse(JSON.stringify(S)); if (copy.meta) delete copy.meta.versioner; copy.meta = copy.meta || {}; copy.meta.savedAt = new Date().toISOString();
+    try {
+        const r = await dbxReq('upload', JSON.stringify(copy), '/versioner/' + id + '.json');
+        if (!r.ok) throw await dbxErr(r);
+        S.meta.versioner = (S.meta.versioner || []).concat([{ id, navn, tid: new Date().toISOString(), antal: S.personer.length }]);
+        commit(); render(); toast('Version gemt: ' + navn);
+    } catch (e) { toast('Kunne ikke gemme versionen: ' + (e.message || e), true); }
+}
+async function verOpen(id) {
+    const v = ((S.meta && S.meta.versioner) || []).find(x => x.id === id); if (!v) return;
+    if (!confirm('\u00c5bn \u00ab' + v.navn + '\u00bb?\n\nDet erstatter planen i appen nu. Vil du beholde den nuv\u00e6rende plan, s\u00e5 gem den som en version f\u00f8rst (Annuller).')) return;
+    try {
+        const r = await dbxReq('download', null, '/versioner/' + id + '.json');
+        if (r.status === 409) { toast('Filen findes ikke l\u00e6ngere i Dropbox', true); return; }
+        if (!r.ok) throw await dbxErr(r);
+        const x = JSON.parse(await r.text()); if (!x.personer || !x.afdelinger) throw new Error('ugyldig fil');
+        snapshot(); const bk = S.meta.sidstBackup; adoptState(x); S.meta.sidstBackup = bk; migrer(); commit(); render(); toast('\u00c5bnet: ' + v.navn);
+    } catch (e) { toast('Kunne ikke \u00e5bne: ' + (e.message || e), true); }
+}
+async function verDel(id) {
+    const v = ((S.meta && S.meta.versioner) || []).find(x => x.id === id); if (!v) return;
+    if (!confirm('Slet versionen \u00ab' + v.navn + '\u00bb fra Dropbox? Det kan ikke fortrydes.')) return;
+    try {
+        const t = await dbxToken(); if (!t) throw new Error('login');
+        const r = await fetch(DBXC.api + '/2/files/delete_v2', { method: 'POST', headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }, body: JSON.stringify({ path: '/versioner/' + id + '.json' }) });
+        if (!r.ok && r.status !== 409) throw await dbxErr(r);
+        S.meta.versioner = S.meta.versioner.filter(x => x.id !== id); commit(); render(); toast('Version slettet');
+    } catch (e) { toast('Kunne ikke slette: ' + (e.message || e), true); }
+}
 
 /* ---------- små hjælpere ---------- */
 function toast(msg, bad) {
@@ -1223,6 +1265,13 @@ function viewPersoner() {
 }
 
 /* ================= BACKUP ================= */
+function versionsHtml() {
+    const L = verList();
+    const rows = L.length ? L.map(v => '<tr><td><b>' + esc(v.navn) + '</b></td><td>' + esc(new Date(v.tid).toLocaleString('da-DK', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })) + '</td><td class="ctr">' + (v.antal || '') + '</td><td><button class="btn sm pri" data-act="ver-open" data-id="' + esc(v.id) + '">\u00c5bn</button> <button class="btn sm" data-act="ver-del" data-id="' + esc(v.id) + '">Slet</button></td></tr>').join('') : '<tr><td colspan="4" class="muted">Ingen versioner gemt endnu.</td></tr>';
+    return '<h4>Versioner i Dropbox</h4><p class="muted">Giv planen et navn og gem den (fx \u00abGrundplan jan\u201311\u00bb). Hver version ligger som sin egen fil i Dropbox-app-mappen under \u00abversioner\u00bb og kan \u00e5bnes igen her.</p>'
+        + '<div class="form"><label>Navn <input id="vNavn" value="Grundplan ' + new Date().toLocaleDateString('da-DK') + '" style="width:20em"></label><button class="btn pri" data-act="ver-save">Gem version</button></div>'
+        + '<table class="mini"><thead><tr><th>Navn</th><th>Gemt</th><th>Personer</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
+}
 function viewBackup() {
     let auto;
     if (FS.supported) {
@@ -1243,7 +1292,8 @@ function viewBackup() {
             + '<p>Programmet gemmer en datafil i en skjult app-mappe i <b>din egen Dropbox</b> hver gang du retter noget, og henter den igen, n\u00e5r du \u00e5bner programmet. Du bliver ved med at v\u00e6re logget ind. Gratis Dropbox-konto er nok.</p>'
             + (st ? '<p class="' + (DB.ok && !DB.needLogin ? 'good' : 'warn') + '"><b>' + (DB.ok && !DB.needLogin ? '\u2714 Forbundet til Dropbox' : '\u26A0 Log ind igen') + '</b>' + (DB.err ? ' <span class="muted">(' + esc(DB.err) + ')</span>' : '') + '</p>' : '')
             + (cfgK ? '' : '<div class="form"><label>App key fra Dropbox <input id="dbxId" data-chg="dbxkey" value="' + esc(localStorage.getItem('vagtplan_dbxkey') || '') + '" style="width:16em" placeholder="app key"></label></div>')
-            + '<div class="form">' + (st && DB.ok && !DB.needLogin ? '<button class="btn" data-act="dbx-write">Gem til Dropbox nu</button><button class="btn" data-act="dbx-logout">Log ud</button>' : '<button class="btn pri" data-act="dbx-login">Log ind p\u00e5 Dropbox</button>' + (st ? '<button class="btn" data-act="dbx-logout">Fjern forbindelsen</button>' : '')) + '</div></div>';
+            + '<div class="form">' + (st && DB.ok && !DB.needLogin ? '<button class="btn" data-act="dbx-write">Gem til Dropbox nu</button><button class="btn" data-act="dbx-logout">Log ud</button>' : '<button class="btn pri" data-act="dbx-login">Log ind p\u00e5 Dropbox</button>' + (st ? '<button class="btn" data-act="dbx-logout">Fjern forbindelsen</button>' : '')) + '</div>'
+            + (dbxKlar() ? versionsHtml() : '<p class="muted">N\u00e5r du er logget ind p\u00e5 Dropbox, kan du her gemme navngivne versioner af planen og \u00e5bne dem igen.</p>') + '</div>';
     }
     let odp = '';
     if (odAvailable()) {
@@ -1270,6 +1320,9 @@ function act(a, t) {
     const d = t.dataset;
     switch (a) {
         case 'tab': UI.tab = d.k; render(); break;
+        case 'ver-save': verSave(($('#vNavn') || {}).value); break;
+        case 'ver-open': verOpen(d.id); break;
+        case 'ver-del': verDel(d.id); break;
         case 'dbx-login': dbxLogin(); break;
         case 'dbx-logout': dbxLogout(); break;
         case 'dbx-write': dbxWrite(true).then(() => toast(DB.err ? 'Fejl: ' + DB.err : 'Gemt til Dropbox')); break;
@@ -1370,7 +1423,7 @@ function act(a, t) {
             snapshot(); a.stuer.splice(+d.i, 1); S.hensyn.bemanding = S.hensyn.bemanding.filter(r => !(r.afd === a.id && r.stue === s)); commit(); render(); break;
         }
         case 'bk-save': download('vagtplan-backup-' + todayISO() + '.json', JSON.stringify(S)); S.meta.sidstBackup = new Date().toISOString(); commit(); render(); toast('Backup gemt som fil i din Overførsler-mappe'); break;
-        case 'bk-reset': if (confirm('Nulstil alt til startdata? Dine ændringer forsvinder (tag evt. backup først).')) { snapshot(); S = defaultState(); commit(); render(); } break;
+        case 'bk-reset': if (confirm('Nulstil alt til startdata? Dine ændringer forsvinder (tag evt. backup først).')) { snapshot(); const kv = S.meta.versioner; S = defaultState(); S.meta.versioner = kv; commit(); render(); } break;
     }
 }
 function chg(k, t) {
@@ -1406,7 +1459,7 @@ function chg(k, t) {
         case 'dtekst': snapshot(); afdObj(d.a).dagtekster[+d.i] = t.value; commit(); break;
         case 'bkfile': {
             const f = t.files[0]; if (!f) return; const rd = new FileReader();
-            rd.onload = () => { try { const x = JSON.parse(rd.result); if (!x.personer || !x.afdelinger) throw 0; snapshot(); S = x; commit(); render(); toast('Backup indlæst'); } catch (e) { toast('Filen ligner ikke en vagtplan-backup', true); } };
+            rd.onload = () => { try { const x = JSON.parse(rd.result); if (!x.personer || !x.afdelinger) throw 0; snapshot(); adoptState(x); commit(); render(); toast('Backup indlæst'); } catch (e) { toast('Filen ligner ikke en vagtplan-backup', true); } };
             rd.readAsText(f); break;
         }
     }
