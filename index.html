@@ -101,6 +101,8 @@ input.egen{box-shadow:inset 0 0 0 2px #f59e0b}.chip{background:#dbeafe;color:#1e
   table.aart{width:100%;border-collapse:collapse}table.aart td,table.aart th{border-bottom:1px solid #bbb;padding:3px 6px;text-align:left}table.aart td.num{text-align:right;white-space:nowrap}table.aart tr.sum td{font-weight:700;border-bottom:2px solid #666}
 }
 
+label.cb{display:inline-block;margin-right:6px;white-space:nowrap;font-size:12px}td.dg{white-space:nowrap}
+
 header{padding-top:max(8px,env(safe-area-inset-top))}main{padding-bottom:max(40px,env(safe-area-inset-bottom))}input,select,textarea{font-size:16px}
 </style></head>
 <body>
@@ -377,21 +379,23 @@ function dageTekst(dage) {
     return s.map(d => DAGE[d].toLowerCase()).join(', ');
 }
 function memberOf(rule, p) {
-    return (rule.afd === '*' || p.afd === rule.afd) && (!rule.stue || p.stue === rule.stue) && (!rule.kval || p.kval === rule.kval);
+    return ruleHasAfd(rule, p.afd) && (!rule.stue || p.stue === rule.stue) && (!rule.kval || p.kval === rule.kval);
 }
 const ALLE_DAGE = [0, 1, 2, 3, 4, 5, 6, 7];
+function ruleHasAfd(rule, afd) { return rule.afds ? rule.afds.includes(afd) : (rule.afd === '*' || rule.afd === afd); }
+function ruleAfdTekst(rule) { return rule.afds ? 'Afdelingerne ' + rule.afds.join(' + ') : (rule.afd === '*' ? 'Alle afdelinger' : 'Hele afdelingen ' + rule.afd); }
 function ruleDage(rule) { return rule.dage || ALLE_DAGE; }
 function ruleSlots(rule) { const a = []; for (let m = rule.fra; m < rule.til; m += SLOT_TRIN) a.push(m); return a; }
 function bemandingTekst(rule) {
     const dg = ruleDage(rule), alle = dg.length === 8, mt = dg.length === 4 && dg.join() === '0,1,2,3';
-    return (rule.stue || (rule.afd === '*' ? 'Begge afdelinger' : 'Hele afdelingen ' + rule.afd)) + ' ' + fmtT(rule.fra) + '-' + fmtT(rule.til) + ': mindst ' + rule.min + (rule.kval ? ' ' + rule.kval.toLowerCase() : '') + (alle ? '' : ' (' + (mt ? 'man-tors' : dageTekst(dg)) + ')');
+    return (rule.stue || ruleAfdTekst(rule)) + ' ' + fmtT(rule.fra) + '-' + fmtT(rule.til) + ': mindst ' + rule.min + (rule.kval ? ' ' + rule.kval.toLowerCase() : '') + (alle ? '' : ' (' + (mt ? 'man-tors' : dageTekst(dg)) + ')');
 }
 
 /* items: [{label, get:(p)=>[s,e]|null}] -> sammenhængende huller */
 function coverageIssues(S, afd, items) {
     const issues = [];
     for (const rule of S.hensyn.bemanding) {
-        if (rule.afd !== afd && rule.afd !== '*') continue;
+        if (!ruleHasAfd(rule, afd)) continue;
         const mem = S.personer.filter(p => memberOf(rule, p));
         const slots = ruleSlots(rule);
         const dg = ruleDage(rule);
@@ -413,7 +417,7 @@ function coverageIssues(S, afd, items) {
     return issues;
 }
 function issueTekst(is) {
-    return is.label + ' · ' + (is.rule.stue || (is.rule.afd === '*' ? 'Begge afdelinger' : 'Hele afdelingen')) + ' ' + fmtT(is.from) + '-' + fmtT(is.to) + ': ' + is.worst + ' af ' + is.rule.min + (is.rule.kval ? ' ' + is.rule.kval.toLowerCase() : '') + (is.rule.hard === 'skal' ? '' : ' (gerne)');
+    return is.label + ' · ' + (is.rule.stue || (is.rule.afds ? is.rule.afds.join(' + ') : (is.rule.afd === '*' ? 'Alle afdelinger' : 'Hele afdelingen'))) + ' ' + fmtT(is.from) + '-' + fmtT(is.to) + ': ' + is.worst + ' af ' + is.rule.min + (is.rule.kval ? ' ' + is.rule.kval.toLowerCase() : '') + (is.rule.hard === 'skal' ? '' : ' (gerne)');
 }
 function baseItems() { return DAGE.map((n, d) => ({ label: n, get: p => getBase(p, d) })); }
 
@@ -851,7 +855,7 @@ function csvEksport(S, afd) {
     }
     return rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(';')).join('\r\n');
 }
-if (typeof module !== 'undefined' && module.exports !== undefined) module.exports = { fraevaerKonti, taelFravaer, afbankNy, afbankTaget, afbankExtraMin, timerBeregnet, opgFordeling, opgUgeMin, opgCycleFordelt, kortVagt, afspadForslag, afspadAnvend, afspadFjern, oparbejdetMin, gemOv, opgOversigt, ansaetOf, lukketNavn, setOpgIPlan, HELLIGDAGE_STD, aarsNorm, normAarStart, opgCycleMin, opgWeekMin, nyGrundplanFra, planVersion, idag, ruleViolationsDate, hensynKort, indstFor, ruleDage, bemandingTekst, coverageMatrix, parseTid, parseVagt, personTotals, solve, analyse, coverageIssues, baseItems, effInfo, findAfloeser, dagIdxFor, rotWeek, mondayOf, addDays, fmtVagt, fmtDiff, fmtT, unikVagter, ruleViolations, weekItems, csvEksport, weekMinutes };
+if (typeof module !== 'undefined' && module.exports !== undefined) module.exports = { ruleHasAfd, fraevaerKonti, taelFravaer, afbankNy, afbankTaget, afbankExtraMin, timerBeregnet, opgFordeling, opgUgeMin, opgCycleFordelt, kortVagt, afspadForslag, afspadAnvend, afspadFjern, oparbejdetMin, gemOv, opgOversigt, ansaetOf, lukketNavn, setOpgIPlan, HELLIGDAGE_STD, aarsNorm, normAarStart, opgCycleMin, opgWeekMin, nyGrundplanFra, planVersion, idag, ruleViolationsDate, hensynKort, indstFor, ruleDage, bemandingTekst, coverageMatrix, parseTid, parseVagt, personTotals, solve, analyse, coverageIssues, baseItems, effInfo, findAfloeser, dagIdxFor, rotWeek, mondayOf, addDays, fmtVagt, fmtDiff, fmtT, unikVagter, ruleViolations, weekItems, csvEksport, weekMinutes };
 </script>
 <script>/* ===================== UI ===================== */
 const KEY = 'vagtplan_v1';
@@ -896,6 +900,7 @@ function migrer() {
     if (gl.taeller) Object.keys(gl.taeller).forEach(k => { if (gl.taeller[k] === false) fm[k] = 'nej'; });
     S.aarsnorm = Object.assign(JSON.parse(JSON.stringify(AARS_STD)), gl); S.aarsnorm.fravaerMode = fm; delete S.aarsnorm.taeller;
     if (!S.aarsnorm.lukkedage) S.aarsnorm.lukkedage = []; if (!S.aarsnorm.helligdage) S.aarsnorm.helligdage = HELLIGDAGE_STD.slice();
+    (S.hensyn.bemanding || []).forEach(r => { if (r.afd === '*') { const ids = S.afdelinger.slice(0, 2).map(a => a.id); if (ids.length > 1) { r.afds = ids; delete r.afd; } else r.afd = ids[0]; } });
     if (!S.opggrp) S.opggrp = [];
     groupIdenticalTasks();
     S.opgIPlan = false; if (S.timerAuto == null) S.timerAuto = false; if (!S.afspad) S.afspad = []; if (!S.afbank) S.afbank = [];
@@ -1836,16 +1841,36 @@ function viewHensyn() {
         + '<div class="form"><label>Note <input id="hpN" placeholder="Valgfri – skriv kun hensynet, ikke årsagen" style="width:24em"></label><button class="btn pri" data-act="hp-add">Tilføj</button></div>';
     h += '<table class="mini"><thead><tr><th>Hensyn</th><th>Type</th><th></th></tr></thead><tbody>' + (S.hensyn.person.length ? S.hensyn.person.map(x => '<tr><td>' + esc(hensynTekst(S, x)) + '</td><td>' + (x.hard === 'skal' ? '<b>Skal</b>' : 'Gerne') + '</td><td><button class="btn sm" data-act="hp-del" data-id="' + x.id + '">Slet</button></td></tr>').join('') : '<tr><td colspan="3" class="muted">Ingen personhensyn endnu. Eksempler: «kan ikke starte før 8.00 om tirsdagen», «fri 12/11».</td></tr>') + '</tbody></table></div>';
     /* bemanding */
-    const a = (UI.hAfd || afd) === '*' ? null : afdObj(UI.hAfd || afd);
-    h += '<div class="panel"><h4>Mindste bemanding</h4><p class="muted">Red markerer huller i dækningstabellerne, og generatoren forsøger at undgå dem. Lad «Stue» stå på «Hele afdelingen» for fx åbning og lukning, hvor børnene er samlet. Vælg «Begge afdelinger», hvis kravet gælder på tværs af VS og BH. Skal der være en pædagog, så sæt kvalifikationen på personerne under Personer og opsætning først.</p>'
-        + '<div class="form"><select id="hbA" data-chg="hbA">' + S.afdelinger.map(x => '<option value="' + x.id + '" ' + (x.id === (UI.hAfd || afd) ? 'selected' : '') + '>' + x.id + '</option>').join('') + '<option value="*" ' + ((UI.hAfd || afd) === '*' ? 'selected' : '') + '>Begge afdelinger</option></select>'
-        + '<select id="hbS"><option value="">' + ((UI.hAfd || afd) === '*' ? 'Alle stuer' : 'Hele afdelingen') + '</option>' + (a ? a.stuer.map(s => '<option>' + esc(s) + '</option>').join('') : '') + '</select>'
+    let valgt = (UI.hAfds || []).filter(id => afdObj(id)); if (!valgt.length) valgt = [afdObj(UI.hAfd || afd) ? (UI.hAfd || afd) : S.afdelinger[0].id]; UI.hAfds = valgt;
+    const a = valgt.length === 1 ? afdObj(valgt[0]) : null;
+    const KV = ['', 'P\u00e6dagog', ...new Set(S.personer.map(p => p.kval).filter(k => k && k !== 'P\u00e6dagog'))];
+    const DK = ['M', 'Ti', 'O', 'To', 'F1', 'F2', 'F3', 'F4'], DT = ['Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag 1', 'Fredag 2', 'Fredag 3', 'Fredag 4'];
+    h += '<div class="panel"><h4>Mindste bemanding</h4><p class="muted">R\u00f8d markerer huller i d\u00e6kningstabellerne, og generatoren fors\u00f8ger at undg\u00e5 dem. Vælg de <b>afdelinger</b>, kravet g\u00e6lder for (flere kan v\u00e6lges, fx kun VS og BH, uden K\u00f8kken). Lad \u00abStue\u00bb st\u00e5 p\u00e5 \u00abHele afdelingen\u00bb for fx \u00e5bning og lukning, hvor b\u00f8rnene er samlet. Skal der v\u00e6re en p\u00e6dagog, s\u00e5 s\u00e6t kvalifikationen p\u00e5 personerne under Personer og ops\u00e6tning f\u00f8rst. Alle regler kan rettes direkte i listen.</p>'
+        + '<div class="form"><b>G\u00e6lder for:</b> ' + S.afdelinger.map(x => '<label class="cb"><input type="checkbox" data-chg="hb-afd" data-a="' + esc(x.id) + '" ' + (valgt.includes(x.id) ? 'checked' : '') + '> ' + esc(x.navn) + '</label>').join(' ')
+        + '<select id="hbS"' + (a ? '' : ' disabled') + '><option value="">' + (a ? 'Hele afdelingen' : 'Alle stuer') + '</option>' + (a ? a.stuer.map(s => '<option>' + esc(s) + '</option>').join('') : '') + '</select>'
         + '<label>fra <input id="hbF" value="8.30" style="width:5em"></label><label>til <input id="hbT" value="14.30" style="width:5em"></label><label>mindst <input id="hbM" type="number" min="1" value="2" style="width:4em"></label>'
-        + '<select id="hbK"><option value="">alle</option><option>Pædagog</option></select>'
-        + '<select id="hbD"><option value="alle">alle dage</option><option value="mt">man–tors</option><option value="fre">fredage</option></select>'
-        + '<select id="hbH"><option value="skal">Skal</option><option value="gerne">Gerne</option></select><button class="btn pri" data-act="hb-add">Tilføj</button></div>';
-    h += '<table class="mini"><thead><tr><th>Afd.</th><th>Regel</th><th>Type</th><th></th></tr></thead><tbody>' + S.hensyn.bemanding.map(r => '<tr><td>' + (r.afd === '*' ? 'Begge' : esc(r.afd)) + '</td><td>' + esc(bemandingTekst(r)) + (r.eksempel ? ' <span class="ex">eksempel</span>' : '') + '</td><td>' + (r.hard === 'skal' ? '<b>Skal</b>' : 'Gerne') + '</td><td><button class="btn sm" data-act="hb-del" data-id="' + r.id + '">Slet</button></td></tr>').join('') + '</tbody></table>';
-    h += '<p class="muted"><span class="ex">eksempel</span> = startværdier jeg har lagt ind for at vise, hvordan det virker. Ret eller slet dem, så de passer til jeres regler.</p></div>';
+        + '<select id="hbK">' + KV.map(k => '<option value="' + esc(k) + '">' + (k || 'alle') + '</option>').join('') + '</select>'
+        + '<select id="hbD"><option value="alle">alle dage</option><option value="mt">man\u2013tors</option><option value="fre">fredage</option></select>'
+        + '<select id="hbH"><option value="skal">Skal</option><option value="gerne">Gerne</option></select><button class="btn pri" data-act="hb-add">Tilf\u00f8j</button></div>';
+    /* filter */
+    const BF = UI.brF = UI.brF || { afd: '', stue: '', hard: '', kval: '' };
+    const alleR = S.hensyn.bemanding, afdsOf = r => r.afds ? r.afds : [r.afd];
+    const vis = alleR.filter(r => (!BF.afd || ruleHasAfd(r, BF.afd)) && (!BF.stue || r.stue === BF.stue) && (!BF.hard || r.hard === BF.hard) && (!BF.kval || (r.kval || '') === BF.kval));
+    const stF = BF.afd && afdObj(BF.afd) ? afdObj(BF.afd).stuer : [...new Set(S.afdelinger.flatMap(x => x.stuer))];
+    const fs = (k, opts, tom) => '<select data-chg="br-filter" data-k="' + k + '"><option value="">' + tom + '</option>' + opts.map(([v, t]) => '<option value="' + esc(v) + '" ' + (BF[k] === v ? 'selected' : '') + '>' + esc(t) + '</option>').join('') + '</select>';
+    h += '<div class="form filt"><b>Filtr\u00e9r (' + vis.length + ' af ' + alleR.length + ' regler):</b> ' + fs('afd', S.afdelinger.map(x => [x.id, x.navn]), 'Alle afdelinger') + fs('stue', stF.map(s => [s, s]), 'Alle stuer') + fs('hard', [['skal', 'Skal'], ['gerne', 'Gerne']], 'Skal og gerne') + fs('kval', KV.filter(k => k).map(k => [k, k]).concat([['', 'Uden kvalifikation']]).filter(x => x[0]), 'Alle kvalifikationer') + '<button class="btn sm" data-act="br-filter-nul">Nulstil filter</button></div>';
+    h += '<table class="mini"><thead><tr><th>G\u00e6lder for</th><th>Stue</th><th>Tidsrum</th><th>Mindst</th><th>Kval.</th><th>Dage</th><th>Type</th><th></th></tr></thead><tbody>' + (vis.length ? vis.map(r => {
+        const af = afdsOf(r), single = af.length === 1, st = single && afdObj(af[0]) ? afdObj(af[0]).stuer : [], f = k => ' data-chg="br-f" data-f="' + k + '" data-id="' + r.id + '"', dg = ruleDage(r);
+        return '<tr><td>' + S.afdelinger.map(x => '<label class="cb"><input type="checkbox"' + f('afd') + ' data-a="' + esc(x.id) + '" ' + (af.includes(x.id) ? 'checked' : '') + '> ' + esc(x.navn) + '</label>').join(' ') + (r.eksempel ? ' <span class="ex">eksempel</span>' : '') + '</td>'
+            + '<td><select' + f('stue') + (single ? '' : ' disabled') + '><option value="">Hele afdelingen</option>' + st.map(s => '<option ' + (r.stue === s ? 'selected' : '') + '>' + esc(s) + '</option>').join('') + '</select></td>'
+            + '<td><input' + f('fra') + ' value="' + fmtT(r.fra) + '" style="width:4.3em"> \u2013 <input' + f('til') + ' value="' + fmtT(r.til) + '" style="width:4.3em"></td>'
+            + '<td><input' + f('min') + ' type="number" min="1" value="' + r.min + '" style="width:3.4em"></td>'
+            + '<td><select' + f('kval') + '>' + KV.map(k => '<option value="' + esc(k) + '" ' + ((r.kval || '') === k ? 'selected' : '') + '>' + (k || 'alle') + '</option>').join('') + '</select></td>'
+            + '<td class="dg">' + DK.map((t, i) => '<label class="cb" title="' + DT[i] + '"><input type="checkbox"' + f('dag') + ' data-i="' + i + '" ' + (dg.includes(i) ? 'checked' : '') + '>' + t + '</label>').join('') + '</td>'
+            + '<td><select' + f('hard') + '><option value="skal" ' + (r.hard === 'skal' ? 'selected' : '') + '>Skal</option><option value="gerne" ' + (r.hard !== 'skal' ? 'selected' : '') + '>Gerne</option></select></td>'
+            + '<td><button class="btn sm" data-act="hb-del" data-id="' + r.id + '">Slet</button></td></tr>';
+    }).join('') : '<tr><td colspan="8" class="muted">Ingen regler matcher filteret.</td></tr>') + '</tbody></table>';
+    h += '<p class="muted"><span class="ex">eksempel</span> = startv\u00e6rdier jeg har lagt ind for at vise, hvordan det virker. Ret eller slet dem, s\u00e5 de passer til jeres regler.</p></div>';
     h += '<div class="panel"><h4>Andre hensyn (fri tekst – læses ikke af programmet)</h4><textarea id="hTekst" data-chg="htekst" rows="5" placeholder="Fx: Person A kan ikke starte f\u00f8r 8.00 om tirsdagen \u2026">' + esc(S.hensynTekst) + '</textarea></div>';
     return h;
 }
@@ -1862,7 +1887,7 @@ function afdNavnFejl(n, gammel) {
 function omdoebAfd(gammel, nyt) {
     const a = afdObj(gammel); a.id = nyt; a.navn = nyt;
     S.personer.forEach(p => { if (p.afd === gammel) p.afd = nyt; });
-    (S.hensyn.bemanding || []).forEach(r => { if (r.afd === gammel) r.afd = nyt; });
+    (S.hensyn.bemanding || []).forEach(r => { if (r.afd === gammel) r.afd = nyt; if (r.afds) r.afds = r.afds.map(x => x === gammel ? nyt : x); });
     (S.arkiv || []).forEach(v => Object.values(v.pers || {}).forEach(x => { if (x.afd === gammel) x.afd = nyt; }));
     (S.opggrp || []).forEach(g => {
         if (g.maal === 'a:' + gammel) g.maal = 'a:' + nyt; else if (g.maal && g.maal.startsWith('s:' + gammel + '|')) g.maal = 's:' + nyt + g.maal.slice(('s:' + gammel).length);
@@ -2009,6 +2034,7 @@ function act(a, t) {
             const a = afdObj(d.a); if (!a || S.personer.some(p => p.afd === a.id) || S.afdelinger.length < 2) break;
             if (!confirm('Slet afdelingen \u00ab' + a.navn + '\u00bb? Hensyn for afdelingen slettes ogs\u00e5.')) break;
             snapshot(); S.afdelinger = S.afdelinger.filter(x => x.id !== a.id); S.hensyn.bemanding = S.hensyn.bemanding.filter(r => r.afd !== a.id);
+            S.hensyn.bemanding.forEach(r => { if (r.afds) { r.afds = r.afds.filter(x => x !== a.id); if (r.afds.length === 1) { r.afd = r.afds[0]; delete r.afds; } } }); S.hensyn.bemanding = S.hensyn.bemanding.filter(r => r.afd || (r.afds && r.afds.length));
             if (UI.afd === a.id) UI.afd = S.afdelinger[0].id; if (UI.hAfd === a.id) UI.hAfd = null; commit(); render(); toast('Afdelingen er slettet'); break;
         }
         case 'afb-add': {
@@ -2132,10 +2158,13 @@ function act(a, t) {
         case 'hb-add': {
             const fra = parseTid($('#hbF').value), til = parseTid($('#hbT').value), mn = +$('#hbM').value;
             if (fra == null || til == null || til <= fra || !(mn >= 1)) { toast('Tjek tidspunkter og antal', true); break; }
+            const afs = (UI.hAfds || []).filter(id => afdObj(id)); if (!afs.length) { toast('V\u00e6lg mindst \u00e9n afdeling', true); break; }
             const dk = $('#hbD').value; snapshot();
-            S.hensyn.bemanding.push({ id: nyId(S, 'b'), afd: $('#hbA').value, stue: $('#hbS').value, fra, til, min: mn, kval: $('#hbK').value, hard: $('#hbH').value, dage: dk === 'mt' ? [0, 1, 2, 3] : dk === 'fre' ? [4, 5, 6, 7] : [0, 1, 2, 3, 4, 5, 6, 7] });
-            commit(); render(); break;
+            const r = { id: nyId(S, 'b'), stue: afs.length === 1 ? $('#hbS').value : '', fra, til, min: mn, kval: $('#hbK').value, hard: $('#hbH').value, dage: dk === 'mt' ? [0, 1, 2, 3] : dk === 'fre' ? [4, 5, 6, 7] : [0, 1, 2, 3, 4, 5, 6, 7] };
+            if (afs.length === 1) r.afd = afs[0]; else r.afds = afs.slice();
+            S.hensyn.bemanding.push(r); commit(); render(); break;
         }
+        case 'br-filter-nul': UI.brF = { afd: '', stue: '', hard: '', kval: '' }; render(); break;
         case 'hb-del': snapshot(); S.hensyn.bemanding = S.hensyn.bemanding.filter(x => x.id !== d.id); commit(); render(); break;
         case 'p-add': {
             const n = $('#np-n-' + d.a).value.trim(), st = $('#np-s-' + d.a).value, ti = parseFloat($('#np-t-' + d.a).value.replace(',', '.'));
@@ -2215,6 +2244,25 @@ function chg(k, t) {
         case 'hpT': {
             const v = t.value; $('#hpV').innerHTML = v === 'fridag' ? '' : '<input id="hpTid" value="' + (v === 'ikke_foer' ? '8.00' : '15.00') + '" style="width:5em">';
             $$('#hpD input.hpd').forEach(c => { c.checked = v !== 'fridag'; }); break;
+        }
+        case 'hb-afd': { const s = new Set(UI.hAfds || []); if (t.checked) s.add(d.a); else s.delete(d.a); if (!s.size) { toast('V\u00e6lg mindst \u00e9n afdeling', true); render(); break; } UI.hAfds = S.afdelinger.map(a => a.id).filter(id => s.has(id)); render(); break; }
+        case 'br-filter': { const F = UI.brF = UI.brF || {}; F[d.k] = t.value; if (d.k === 'afd') F.stue = ''; render(); break; }
+        case 'br-f': {
+            const r = S.hensyn.bemanding.find(x => x.id === d.id); if (!r) break; const f = d.f; snapshot();
+            const afOf = () => r.afds ? r.afds.slice() : [r.afd];
+            if (f === 'afd') {
+                const s = new Set(afOf()); if (t.checked) s.add(d.a); else s.delete(d.a);
+                if (!s.size) { undoStack.pop(); toast('En regel skal g\u00e6lde for mindst \u00e9n afdeling', true); render(); break; }
+                const L = S.afdelinger.map(a => a.id).filter(id => s.has(id));
+                if (L.length === 1) { r.afd = L[0]; delete r.afds; const ao = afdObj(L[0]); if (r.stue && ao && !ao.stuer.includes(r.stue)) r.stue = ''; } else { r.afds = L; delete r.afd; r.stue = ''; }
+            }
+            else if (f === 'stue') r.stue = t.value;
+            else if (f === 'fra' || f === 'til') { const m = parseTid(t.value); const nf = f === 'fra' ? m : r.fra, nt = f === 'til' ? m : r.til; if (m == null || nt <= nf) { undoStack.pop(); toast('Tjek tidspunktet (til skal v\u00e6re efter fra)', true); render(); break; } r[f] = m; }
+            else if (f === 'min') { const v = parseInt(t.value, 10); if (!(v >= 1)) { undoStack.pop(); toast('Mindst 1 person', true); render(); break; } r.min = v; }
+            else if (f === 'kval') r.kval = t.value;
+            else if (f === 'hard') r.hard = t.value;
+            else if (f === 'dag') { const s = new Set(ruleDage(r)); if (t.checked) s.add(+d.i); else s.delete(+d.i); if (!s.size) { undoStack.pop(); toast('V\u00e6lg mindst \u00e9n dag', true); render(); break; } r.dage = [...s].sort((a, b) => a - b); }
+            delete r.eksempel; commit(); render(); break;
         }
         case 'hbA': UI.hAfd = t.value; render(); break;
         case 'pf': {
