@@ -1,3 +1,3 @@
-// Indstillinger til OneDrive-forbindelsen. Saet client id (Application ID) fra din Microsoft
-// app-registrering ind mellem anfoerselstegnene. Resten skal ikke aendres.
-window.VAGTPLAN_CONFIG = { clientId: '' };
+// Indstillinger til den automatiske gem. Skriv dit Dropbox app key mellem anfoerselstegnene
+// (eller lad det staa tomt og skriv det ind i appen paa fanen Backup og hjaelp).
+window.VAGTPLAN_CONFIG = { dropboxKey: '' };

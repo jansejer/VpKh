@@ -593,7 +593,7 @@ function migrer() {
     (S.personer || []).forEach(p => { if (/barsel/i.test(p.navn)) p.navn = p.navn.replace(/\s*\/?\s*barsel/i, '').trim(); });
     commit();
 }
-function commit() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('Kunne ikke gemme i browseren – tag en backup!', true); } fsSchedule(); odSchedule(); }
+function commit() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('Kunne ikke gemme i browseren – tag en backup!', true); } fsSchedule(); odSchedule(); dbxSchedule(); }
 function snapshot() { undoStack.push(JSON.stringify(S)); if (undoStack.length > 60) undoStack.shift(); $('#btnUndo').disabled = false; }
 function undo() { if (!undoStack.length) return; S = JSON.parse(undoStack.pop()); commit(); render(); toast('Seneste ændring fortrudt'); $('#btnUndo').disabled = !undoStack.length; }
 function logg(t) { S.log.unshift({ t: new Date().toLocaleString('da-DK'), tekst: t }); if (S.log.length > 100) S.log.length = 100; }
@@ -678,6 +678,8 @@ function updateHeader() {
     const odS = odAvailable() && odStored();
     if (odS && OD.ok && !OD.needLogin) { t = OD.offline ? '\u25B2 OneDrive: ingen forbindelse \u2013 gemmer n\u00e5r der er net' : '\u2714 Gemmer automatisk i OneDrive' + (OD.lastSaved ? ' (sidst ' + OD.lastSaved.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' }) + ')' : ''); c += OD.offline ? ' warn' : ' ok'; el.dataset.go = 'backup'; }
     else if (odS && OD.needLogin) { t = '\u26A0 Log ind p\u00e5 OneDrive igen \u2013 tryk her'; c += ' warn'; el.dataset.go = 'odlogin'; }
+    else if (odAvailable() && dbxStored() && DB.ok && !DB.needLogin) { t = DB.offline ? '\u25B2 Dropbox: ingen forbindelse \u2013 gemmer n\u00e5r der er net' : '\u2714 Gemmer automatisk i Dropbox' + (DB.lastSaved ? ' (sidst ' + DB.lastSaved.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' }) + ')' : ''); c += DB.offline ? ' warn' : ' ok'; el.dataset.go = 'backup'; }
+    else if (odAvailable() && dbxStored() && DB.needLogin) { t = '\u26A0 Log ind p\u00e5 Dropbox igen \u2013 tryk her'; c += ' warn'; el.dataset.go = 'dbxlogin'; }
     else if (FS.handle && FS.ok) { t = '✔ Gemmer automatisk i ' + FS.handle.name + (FS.lastSaved ? ' (sidst ' + FS.lastSaved.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' }) + ')' : ''); c += ' ok'; el.dataset.go = 'backup'; }
     else if (FS.handle) { t = '⚠ Klik her for at genoprette automatisk gem' + (FS.err ? ' – ' + FS.err.slice(0, 60) : ''); c += ' warn'; el.dataset.go = 'reconnect'; }
     else if (FS.supported) { t = '⚠ Automatisk gem er ikke slået til – klik her'; c += ' warn'; el.dataset.go = 'backup'; }
@@ -716,11 +718,11 @@ async function odTokenCall(params) {
 async function odHandleRedirect() {
     const q = new URLSearchParams(location.search);
     if (!q.has('code') && !q.has('error')) return false;
-    const clean = () => { try { history.replaceState({}, '', odRedirect()); } catch (e) { } };
-    if (q.has('error')) { toast('Microsoft-login mislykkedes: ' + (q.get('error_description') || q.get('error')), true); clean(); return true; }
     let pk = null; try { pk = JSON.parse(localStorage.getItem('vagtplan_pkce') || 'null'); } catch (e) { }
+    if (!pk || pk.state !== q.get('state')) return false;          // ikke et OneDrive-login
+    const clean = () => { try { history.replaceState({}, '', odRedirect()); } catch (e) { } };
     localStorage.removeItem('vagtplan_pkce'); clean();
-    if (!pk || pk.state !== q.get('state')) { toast('Login kunne ikke bekr\u00e6ftes. Pr\u00f8v igen.', true); return true; }
+    if (q.has('error')) { toast('Microsoft-login mislykkedes: ' + (q.get('error_description') || q.get('error')), true); return true; }
     try {
         await odTokenCall({ client_id: odClientId(), scope: MS.scope, code: q.get('code'), redirect_uri: odRedirect(), grant_type: 'authorization_code', code_verifier: pk.ver });
         OD.ok = true; OD.needLogin = false; toast('Forbundet til OneDrive');
@@ -795,6 +797,110 @@ async function odInit() {
 }
 function odLogout() { localStorage.removeItem('vagtplan_ms'); OD.ok = false; OD.needLogin = false; OD.err = null; updateHeader(); render(); toast('Logget ud af OneDrive'); }
 window.addEventListener('online', () => { if (OD.ok && OD.offline) odWrite(false); });
+
+/* ---------- automatisk gem i Dropbox (app-mappe, vedvarende login via refresh-token) ---------- */
+const DBXC = { auth: CFG.dbxAuth || 'https://www.dropbox.com/oauth2/authorize', api: CFG.dbxApi || 'https://api.dropboxapi.com', content: CFG.dbxContent || 'https://content.dropboxapi.com' };
+const DB = { ok: false, lastSaved: null, lastSeen: '', timer: null, busy: false, err: null, needLogin: false, offline: false };
+function dbxKey() { return CFG.dropboxKey || localStorage.getItem('vagtplan_dbxkey') || ''; }
+function dbxStored() { try { return JSON.parse(localStorage.getItem('vagtplan_dbx') || 'null'); } catch (e) { return null; } }
+async function dbxLogin() {
+    const key = dbxKey();
+    if (!key) { toast('Skriv f\u00f8rst app-n\u00f8glen (app key) fra Dropbox', true); return; }
+    const ver = b64url(crypto.getRandomValues(new Uint8Array(48))), state = b64url(crypto.getRandomValues(new Uint8Array(16)));
+    const chal = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ver)));
+    localStorage.setItem('vagtplan_pkce_dbx', JSON.stringify({ ver, state, t: Date.now() }));
+    const p = new URLSearchParams({ client_id: key, response_type: 'code', redirect_uri: odRedirect(), code_challenge: chal, code_challenge_method: 'S256', token_access_type: 'offline', state });
+    location.href = DBXC.auth + '?' + p.toString();
+}
+async function dbxTokenCall(params) {
+    const r = await fetch(DBXC.api + '/oauth2/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(params).toString() });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.access_token) throw new Error(j.error_description || j.error || ('HTTP ' + r.status));
+    const prev = dbxStored() || {};
+    localStorage.setItem('vagtplan_dbx', JSON.stringify({ access: j.access_token, refresh: j.refresh_token || prev.refresh, exp: Date.now() + (j.expires_in || 14400) * 1000 - 120000 }));
+}
+async function dbxHandleRedirect() {
+    const q = new URLSearchParams(location.search);
+    if (!q.has('code') && !q.has('error')) return false;
+    let pk = null; try { pk = JSON.parse(localStorage.getItem('vagtplan_pkce_dbx') || 'null'); } catch (e) { }
+    if (!pk || pk.state !== q.get('state')) return false;
+    const clean = () => { try { history.replaceState({}, '', odRedirect()); } catch (e) { } };
+    localStorage.removeItem('vagtplan_pkce_dbx'); clean();
+    if (q.has('error')) { toast('Dropbox-login mislykkedes: ' + (q.get('error_description') || q.get('error')), true); return true; }
+    try {
+        await dbxTokenCall({ client_id: dbxKey(), code: q.get('code'), redirect_uri: odRedirect(), grant_type: 'authorization_code', code_verifier: pk.ver });
+        DB.ok = true; DB.needLogin = false; toast('Forbundet til Dropbox');
+        await dbxCheckNewer(); await dbxWrite(true);
+    } catch (e) { DB.err = String(e.message || e); toast('Login mislykkedes: ' + DB.err, true); }
+    return true;
+}
+async function dbxToken() {
+    const s = dbxStored(); if (!s) return null;
+    if (s.access && Date.now() < s.exp) return s.access;
+    if (!s.refresh) { DB.needLogin = true; return null; }
+    try {
+        await dbxTokenCall({ client_id: dbxKey(), refresh_token: s.refresh, grant_type: 'refresh_token' });
+        return dbxStored().access;
+    } catch (e) {
+        if (e instanceof TypeError) throw e;
+        DB.needLogin = true; DB.ok = false; return null;
+    }
+}
+async function dbxRead() {
+    const t = await dbxToken(); if (!t) throw new Error('login');
+    const r = await fetch(DBXC.content + '/2/files/download', { method: 'POST', headers: { Authorization: 'Bearer ' + t, 'Dropbox-API-Arg': JSON.stringify({ path: '/vagtplan-data.json' }) } });
+    if (r.status === 409) return null;                      // filen findes ikke endnu
+    if (!r.ok) throw new Error('Dropbox svarede ' + r.status);
+    try { const x = JSON.parse(await r.text()); return x && x.personer && x.afdelinger ? x : null; } catch (e) { return null; }
+}
+async function dbxPut(text) {
+    const t = await dbxToken(); if (!t) throw new Error('login');
+    return fetch(DBXC.content + '/2/files/upload', { method: 'POST', headers: { Authorization: 'Bearer ' + t, 'Dropbox-API-Arg': JSON.stringify({ path: '/vagtplan-data.json', mode: 'overwrite', mute: true }), 'Content-Type': 'application/octet-stream' }, body: text });
+}
+async function dbxCheckNewer() {
+    const x = await dbxRead(); if (!x) return;
+    const fT = (x.meta && x.meta.savedAt) || '', mine = (S.meta && S.meta.savedAt) || '';
+    DB.lastSeen = fT;
+    if (fT && fT > mine && confirm('Filen i Dropbox er nyere (gemt ' + fmtStempel(fT) + ') end data p\u00e5 denne enhed' + (mine ? ' (gemt ' + fmtStempel(mine) + ')' : '') + '.\n\nOK = indl\u00e6s data fra Dropbox\nAnnuller = behold data p\u00e5 denne enhed (Dropbox bliver overskrevet)')) {
+        S = x; if (!S.meta) S.meta = {}; migrer(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { } render();
+    }
+}
+function dbxSchedule() { if (!DB.ok) return; clearTimeout(DB.timer); DB.timer = setTimeout(() => dbxWrite(false), 1500); }
+async function dbxWrite(force) {
+    if (!DB.ok || DB.busy) return;
+    DB.busy = true;
+    try {
+        if (!force) {
+            const cur = await dbxRead(); const ct = cur && cur.meta && cur.meta.savedAt || '';
+            if (ct && ct > DB.lastSeen) {
+                if (!confirm('Filen i Dropbox er \u00e6ndret et andet sted (gemt ' + fmtStempel(ct) + ') siden du sidst gemte.\n\nOK = overskriv Dropbox med dine data\nAnnuller = indl\u00e6s filens data i stedet (dine seneste \u00e6ndringer her g\u00e5r tabt)')) {
+                    S = cur; migrer(); DB.lastSeen = ct; localStorage.setItem(KEY, JSON.stringify(S)); DB.busy = false; render(); return;
+                }
+            }
+        }
+        S.meta.savedAt = new Date().toISOString();
+        try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { }
+        const r = await dbxPut(JSON.stringify(S));
+        if (!r.ok) throw new Error('Dropbox svarede ' + r.status);
+        DB.lastSeen = S.meta.savedAt; DB.lastSaved = new Date(); DB.err = null; DB.offline = false;
+    } catch (e) {
+        if (e instanceof TypeError) { DB.offline = true; DB.err = 'ingen forbindelse'; }
+        else if (String(e.message) === 'login') { DB.needLogin = true; DB.ok = false; }
+        else DB.err = String(e.message || e);
+    }
+    DB.busy = false; updateHeader();
+}
+async function dbxInit() {
+    if (!odAvailable()) return;
+    await dbxHandleRedirect();
+    const s = dbxStored();
+    if (s) {
+        try { const t = await dbxToken(); if (t) { DB.ok = true; await dbxCheckNewer(); } } catch (e) { DB.ok = true; DB.offline = true; }
+    }
+    updateHeader(); if (UI.tab === 'backup') render();
+}
+function dbxLogout() { localStorage.removeItem('vagtplan_dbx'); DB.ok = false; DB.needLogin = false; DB.err = null; updateHeader(); render(); toast('Logget ud af Dropbox'); }
+window.addEventListener('online', () => { if (DB.ok && DB.offline) dbxWrite(false); });
 
 /* ---------- små hjælpere ---------- */
 function toast(msg, bad) {
@@ -1118,6 +1224,15 @@ function viewBackup() {
     } else {
         auto = '<div class="panel"><h4>Automatisk gem</h4><p class="warn">Denne browser kan ikke gemme automatisk til en fil. Brug Chrome eller Edge for det. Til da: tag en backup (nedenfor) med jævne mellemrum – øverst vises, hvor længe siden den sidste var.</p></div>';
     }
+    let dbp = '';
+    if (odAvailable()) {
+        const cfgK = !!CFG.dropboxKey, st = !!dbxStored();
+        dbp = '<div class="panel"><h4>Automatisk gem i Dropbox (anbefalet p\u00e5 iPad)</h4>'
+            + '<p>Programmet gemmer en datafil i en skjult app-mappe i <b>din egen Dropbox</b> hver gang du retter noget, og henter den igen, n\u00e5r du \u00e5bner programmet. Du bliver ved med at v\u00e6re logget ind. Gratis Dropbox-konto er nok.</p>'
+            + (st ? '<p class="' + (DB.ok && !DB.needLogin ? 'good' : 'warn') + '"><b>' + (DB.ok && !DB.needLogin ? '\u2714 Forbundet til Dropbox' : '\u26A0 Log ind igen') + '</b>' + (DB.err ? ' <span class="muted">(' + esc(DB.err) + ')</span>' : '') + '</p>' : '')
+            + (cfgK ? '' : '<div class="form"><label>App key fra Dropbox <input id="dbxId" data-chg="dbxkey" value="' + esc(localStorage.getItem('vagtplan_dbxkey') || '') + '" style="width:16em" placeholder="app key"></label></div>')
+            + '<div class="form">' + (st && DB.ok && !DB.needLogin ? '<button class="btn" data-act="dbx-write">Gem til Dropbox nu</button><button class="btn" data-act="dbx-logout">Log ud</button>' : '<button class="btn pri" data-act="dbx-login">Log ind p\u00e5 Dropbox</button>' + (st ? '<button class="btn" data-act="dbx-logout">Fjern forbindelsen</button>' : '')) + '</div></div>';
+    }
     let odp = '';
     if (odAvailable()) {
         const cfgId = !!CFG.clientId, stored = !!odStored();
@@ -1127,7 +1242,7 @@ function viewBackup() {
             + (cfgId ? '' : '<div class="form"><label>Program-id (client id) fra Microsoft <input id="msId" data-chg="msid" value="' + esc(localStorage.getItem('vagtplan_msid') || '') + '" style="width:22em" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></label></div>')
             + '<div class="form">' + (stored && OD.ok && !OD.needLogin ? '<button class="btn" data-act="od-write">Gem til OneDrive nu</button><button class="btn" data-act="od-logout">Log ud</button>' : '<button class="btn pri" data-act="od-login">Log ind p\u00e5 OneDrive</button>' + (stored ? '<button class="btn" data-act="od-logout">Fjern forbindelsen</button>' : '')) + '</div></div>';
     }
-    return '<div class="intro"><b>Sådan gemmes dine data:</b> alt gemmes altid i denne browser på denne computer. Det er væk, hvis browserens data ryddes, eller filen åbnes fra en anden mappe eller computer – derfor er en fil-kopi vigtig.</div>' + odp + auto
+    return '<div class="intro"><b>Sådan gemmes dine data:</b> alt gemmes altid i denne browser på denne computer. Det er væk, hvis browserens data ryddes, eller filen åbnes fra en anden mappe eller computer – derfor er en fil-kopi vigtig.</div>' + dbp + odp + auto
         + '<div class="panel"><h4>Manuel backup</h4><div class="form"><button class="btn" data-act="bk-save">Gem backup (fil)</button><button class="btn" data-act="bk-share">Del backup…</button><label class="btn">Åbn backup … <input type="file" id="bkFile" accept=".json" data-chg="bkfile" style="display:none"></label><button class="btn" data-act="bk-reset">Nulstil til startdata</button></div>'
         + '<div class="form"><button class="btn" data-act="csv-all">Eksportér begge afdelinger til CSV (åbnes i Excel)</button></div></div>'
         + '<div class="panel"><h4>Hurtig hjælp</h4><ul class="lst"><li><b>Grundplan:</b> 4-ugers rotation. Mandag–torsdag er den samme alle uger, fredag varierer. Total = 4 × (man–tors) + de fire fredage.</li>'
@@ -1143,6 +1258,9 @@ function act(a, t) {
     const d = t.dataset;
     switch (a) {
         case 'tab': UI.tab = d.k; render(); break;
+        case 'dbx-login': dbxLogin(); break;
+        case 'dbx-logout': dbxLogout(); break;
+        case 'dbx-write': dbxWrite(true).then(() => toast(DB.err ? 'Fejl: ' + DB.err : 'Gemt til Dropbox')); break;
         case 'od-login': odLogin(); break;
         case 'od-logout': odLogout(); break;
         case 'od-write': odWrite(true).then(() => toast(OD.err ? 'Fejl: ' + OD.err : 'Gemt til OneDrive')); break;
@@ -1152,7 +1270,7 @@ function act(a, t) {
             else { download(f.name, JSON.stringify(S)); S.meta.sidstBackup = new Date().toISOString(); commit(); updateHeader(); }
             break;
         }
-        case 'hint': if (t.dataset.go === 'odlogin') odLogin(); else if (t.dataset.go === 'reconnect') fsReconnect(); else { UI.tab = 'backup'; render(); } break;
+        case 'hint': if (t.dataset.go === 'dbxlogin') dbxLogin(); else if (t.dataset.go === 'odlogin') odLogin(); else if (t.dataset.go === 'reconnect') fsReconnect(); else { UI.tab = 'backup'; render(); } break;
         case 'fs-pick': fsPick(); break;
         case 'fs-stop': fsStop(); break;
         case 'fs-write': fsWrite(true).then(() => toast(FS.err ? 'Fejl: ' + FS.err : 'Gemt til filen')); break;
@@ -1249,6 +1367,7 @@ function chg(k, t) {
         case 'cell': onCell(t); break;
         case 'weekpick': if (t.value) { UI.week = mondayOf(t.value); render(); } break;
         case 'start': if (t.value) { snapshot(); S.startDato = t.value; commit(); toast('Gemt'); } break;
+        case 'dbxkey': localStorage.setItem('vagtplan_dbxkey', t.value.trim()); toast('App key gemt'); break;
         case 'msid': localStorage.setItem('vagtplan_msid', t.value.trim()); toast('Program-id gemt'); break;
         case 'htekst': S.hensynTekst = t.value; commit(); break;
         case 'indst': {
@@ -1298,7 +1417,7 @@ function init() {
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { }
     render();
     fsInit();
-    odInit();
+    odInit().then(() => dbxInit());
     document.addEventListener('visibilitychange', () => { if (document.hidden && FS.handle && FS.ok) { clearTimeout(FS.timer); fsWrite(false); } });
 }
 document.addEventListener('DOMContentLoaded', init);
