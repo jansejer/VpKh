@@ -1,0 +1,1307 @@
+<!doctype html>
+<html lang="da"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vagtplan</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1f3a68">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Vagtplan">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+
+<style>*{box-sizing:border-box}
+body{margin:0;font-family:Arial,"Segoe UI",Helvetica,sans-serif;font-size:13px;color:#1f2937;background:#f3f4f6}
+header{display:flex;align-items:center;gap:12px;background:#1f3a68;color:#fff;padding:8px 16px}
+header h1{font-size:17px;margin:0;font-weight:700;flex:1}
+header .hint{font-size:12px;opacity:.85}header .hint.warn{color:#fde68a;opacity:1}
+header button{background:#fff;color:#1f3a68;border:0;border-radius:5px;padding:6px 11px;font-weight:700;cursor:pointer}
+header button:disabled{opacity:.45;cursor:default}
+#tabs{display:flex;gap:2px;background:#e5e7eb;padding:6px 16px 0;border-bottom:1px solid #cbd5e1;flex-wrap:wrap}
+.tab{border:1px solid #cbd5e1;border-bottom:0;background:#f9fafb;padding:8px 14px;border-radius:7px 7px 0 0;cursor:pointer;font-size:13px;color:#374151}
+.tab.on{background:#fff;font-weight:700;color:#1f3a68;position:relative;top:1px}
+.tab.sm{padding:5px 11px;border-bottom:1px solid #cbd5e1;border-radius:6px}
+main{padding:12px 16px 40px}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.toolbar .sp{flex:1}.afdtabs{display:flex;gap:4px}
+.btn{border:1px solid #9ca3af;background:#fff;border-radius:6px;padding:6px 11px;cursor:pointer;font-size:13px;color:#111827}
+.btn:hover{background:#f3f4f6}.btn.pri{background:#1f3a68;border-color:#1f3a68;color:#fff;font-weight:700}.btn.pri:hover{background:#2c4f8c}
+.btn.sm{padding:2px 7px;font-size:12px}
+.legend,.intro{background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:7px 11px;margin-bottom:8px;color:#4b5563}
+.intro{background:#eff6ff;border-color:#bfdbfe}
+.fs{font-style:italic}
+.gridwrap{overflow:auto;background:#fff;border:1px solid #d1d5db;border-radius:6px;max-height:calc(100vh - 250px)}
+table.grid{border-collapse:separate;border-spacing:0;font-size:12px}
+table.grid th,table.grid td{border-right:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;padding:0 3px;white-space:nowrap}
+table.grid thead th{position:sticky;top:0;background:#f3f4f6;z-index:3;padding:5px 4px;text-align:center;vertical-align:bottom}
+table.grid .dt{font-weight:400;font-size:11px;color:#6b7280;min-height:14px;white-space:normal;max-width:84px}
+.c1{position:sticky;left:0;background:#fff;z-index:2;min-width:150px;text-align:left}
+.c2{position:sticky;left:150px;background:#fff;z-index:2;min-width:44px;text-align:right;color:#6b7280}
+thead .c1,thead .c2{z-index:4;background:#f3f4f6}
+tr.stue td{background:#d9dde3;font-weight:700;padding:3px 6px}tr.stue .c1,tr.stue .c2{background:#d9dde3}
+td.nm{padding:2px 6px}td.tm{padding-right:6px}.note{color:#6b7280;font-size:11px}
+input.cell{width:84px;border:0;background:transparent;font:inherit;font-size:12px;text-align:center;padding:5px 2px;outline:none;border-radius:0}
+input.cell:focus{outline:2px solid #2563eb;outline-offset:-2px}
+input.cell.fs{font-style:italic;box-shadow:inset 0 0 0 1.5px #6b7280;box-shadow:inset 0 0 0 1px #374151}
+input.cell.viol{box-shadow:inset 0 0 0 2px #dc2626}input.cell.soft{box-shadow:inset 0 0 0 2px #f59e0b}
+.num{text-align:right;padding:2px 7px!important;font-variant-numeric:tabular-nums}.sepl{border-left:2px solid #9ca3af!important}
+.good{color:#0a7d28}.bad{color:#c00000}.warn{color:#b45309}.muted{color:#6b7280;font-weight:400}
+.panel{background:#fff;border:1px solid #d1d5db;border-radius:6px;padding:9px 12px;margin-top:10px}
+details.panel>summary{cursor:pointer;font-weight:700;color:#1f3a68}
+h4{margin:8px 0 5px;font-size:13px;color:#1f3a68}h3{margin:0 0 8px;color:#1f3a68}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-top:6px}
+.cov{display:grid;grid-template-columns:repeat(auto-fill,minmax(285px,1fr));gap:14px;margin-top:6px}
+ul.lst{margin:4px 0;padding-left:18px}ul.lst li{margin:2px 0}ul.lst li.bad{color:#c00000}ul.lst li.warn{color:#b45309}ul.lst li.good{color:#0a7d28}
+table.mini{border-collapse:collapse;font-size:12px;margin:4px 0}table.mini th,table.mini td{border:1px solid #d1d5db;padding:3px 7px;text-align:left}
+table.mini th{background:#f3f4f6}.ctr{text-align:center!important}
+table.mini tr.uens td:not(:first-child){background:#ffc7ce;color:#9c0006}
+table.heat td.low{background:#ffc7ce;color:#9c0006;font-weight:700}table.heat td{min-width:34px}
+.badge{font-size:11px;font-weight:700;border-radius:10px;padding:2px 8px;margin-left:8px}.badge.ok{background:#dcfce7;color:#166534}.badge.bad{background:#fee2e2;color:#991b1b}
+.b{font-weight:700;margin:2px 0}.ex{background:#fef3c7;color:#92400e;font-size:11px;border-radius:4px;padding:1px 5px}
+.form{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}.form label{display:flex;gap:4px;align-items:center}
+input,select,textarea{font:inherit;font-size:13px;padding:4px 6px;border:1px solid #9ca3af;border-radius:5px;background:#fff}
+textarea{width:100%}table.mini input,table.mini select{width:100%;min-width:90px}table.mini input[type=checkbox]{width:auto;min-width:0}
+.chip{display:inline-flex;gap:2px;align-items:center}.chip input{width:130px}
+table.week td.wc{text-align:center;padding:5px 8px;min-width:112px;cursor:pointer;line-height:1.25}
+table.week td.wc:hover{outline:2px solid #2563eb;outline-offset:-2px}
+table.week td.abs{background:repeating-linear-gradient(45deg,#fee2e2,#fee2e2 6px,#fecaca 6px,#fecaca 12px);color:#7f1d1d}
+table.week td.ovr{box-shadow:inset 0 0 0 2px #2563eb}.pen{color:#2563eb}
+#modal{display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:50;align-items:flex-start;justify-content:center;padding:6vh 12px;overflow:auto}
+#modal.show{display:flex}#modalBody{background:#fff;border-radius:10px;padding:16px 20px;max-width:560px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+#modal.wide #modalBody{max-width:820px}.btns{display:flex;gap:8px;margin-top:12px;justify-content:flex-end}
+#toasts{position:fixed;right:14px;bottom:14px;display:flex;flex-direction:column;gap:6px;z-index:60}
+.toast{background:#1f2937;color:#fff;padding:9px 14px;border-radius:7px;box-shadow:0 4px 14px rgba(0,0,0,.3);max-width:380px}.toast.bad{background:#b91c1c}
+@media print{
+ @page{size:A4 landscape;margin:8mm}
+ header,#tabs,.toolbar,.legend,.intro,#toasts,#modal,.btn,details.panel>summary{display:none!important}
+ body{background:#fff;font-size:9px}main{padding:0}.gridwrap{max-height:none;overflow:visible;border:0}
+ .c1,.c2,table.grid thead th{position:static}input.cell{width:62px;font-size:9px;padding:2px 0}.panel{break-inside:avoid;border:0;padding:0}
+ details>*:not(summary){display:block}
+}
+
+header button.hintbtn{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.45);font-weight:400;font-size:12px;padding:4px 9px}header button.hintbtn.warn{color:#fde68a;border-color:#fde68a}header button.hintbtn.ok{color:#bbf7d0;border-color:#86efac}
+
+.printhead{display:none}
+@media print{.printhead{display:block;font-weight:700;font-size:12px;margin:0 0 4px}body.print-grid #panels{display:none!important}body.print-grid .gridwrap{break-after:avoid}}
+
+header{padding-top:max(8px,env(safe-area-inset-top))}main{padding-bottom:max(40px,env(safe-area-inset-bottom))}input,select,textarea{font-size:16px}
+</style></head>
+<body>
+<header><h1>Vagtplan</h1><button id="backupHint" class="hintbtn" data-act="hint"></button><button id="btnUndo" disabled>↶ Fortryd</button></header>
+<nav id="tabs"></nav>
+<main id="main"></main>
+<div id="modal"><div id="modalBody"></div></div>
+<div id="toasts"></div>
+<script src="config.js"></script>
+<script>const SEED={"afdelinger": [{"id": "VS", "navn": "VS", "stuer": [], "dagtekster": ["", "", "", "", "", "", "", ""]}, {"id": "BH", "navn": "BH", "stuer": [], "dagtekster": ["", "", "", "", "", "", "", ""]}], "personer": []};</script>
+<script>'use strict';
+/* ===================== KERNE (ingen DOM) ===================== */
+const DAGE = ['Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag 1', 'Fredag 2', 'Fredag 3', 'Fredag 4'];
+const DAG_KORT = ['Man', 'Tirs', 'Ons', 'Tors', 'Fre 1', 'Fre 2', 'Fre 3', 'Fre 4'];
+const UGEDAGE = ['Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lørdag', 'Søndag'];
+const SLOT_FRA = 390, SLOT_TIL = 990, SLOT_TRIN = 30;   // dækningsvisning 6.30 - 16.30
+const MIN_HVILE = 660;                                  // 11 timers hvile mellem vagter
+
+/* ---------- tid ---------- */
+function fmtT(m) { return Math.floor(m / 60) + '.' + String(m % 60).padStart(2, '0'); }
+function fmtVagt(s, e) { return fmtT(s) + '-' + fmtT(e); }
+function fmtDiff(m) { const sg = m < 0 ? '-' : ''; m = Math.abs(Math.round(m)); return sg + Math.floor(m / 60) + '.' + String(m % 60).padStart(2, '0'); }
+
+/* returnerer minutter, eller null hvis ugyldig */
+function parseTid(str) {
+    let s = String(str).trim().replace(/,/g, ':').replace(/\./g, ':');
+    if (!s) return null;
+    let h, m = 0;
+    if (s.includes(':')) {
+        const p = s.split(':');
+        if (p.length !== 2 || !/^\d{1,2}$/.test(p[0]) || !/^\d{1,2}$/.test(p[1])) return null;
+        h = +p[0]; m = p[1].length === 1 ? +p[1] * 10 : +p[1];
+    } else if (/^\d{1,2}$/.test(s)) { h = +s; }
+    else if (/^\d{3,4}$/.test(s)) { const n = +s; h = Math.floor(n / 100); m = n % 100; }
+    else return null;
+    if (h > 23 || m > 59) return null;
+    return h * 60 + m;
+}
+
+/* "7.30-15.15" / "7.30 15.15" / "tom" -> {empty:true} | {s,e} | {err} */
+function parseVagt(str) {
+    const t = String(str == null ? '' : str).trim().replace(/[–—]/g, '-');
+    if (!t) return { empty: true };
+    let parts;
+    if (t.includes('-')) parts = t.split('-').map(x => x.trim()); else parts = t.split(/\s+/);
+    if (parts.length !== 2) return { err: 'Skriv vagten som start-slut, fx 7.30-15.15' };
+    const s = parseTid(parts[0]), e = parseTid(parts[1]);
+    if (s == null || e == null) return { err: 'Ugyldig tid. Skriv fx 7.30-15.15' };
+    if (e <= s) return { err: 'Slut skal være efter start' };
+    return { s, e };
+}
+
+/* ---------- datoer (UTC, uden tidszoneproblemer) ---------- */
+function parseISO(s) { const [y, m, d] = s.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)); }
+function fmtISO(dt) { return dt.toISOString().slice(0, 10); }
+function addDays(iso, n) { const d = parseISO(iso); d.setUTCDate(d.getUTCDate() + n); return fmtISO(d); }
+function weekdayIdx(iso) { return (parseISO(iso).getUTCDay() + 6) % 7; }       // man = 0
+function mondayOf(iso) { return addDays(iso, -weekdayIdx(iso)); }
+function fmtDK(iso) { return iso.slice(8, 10) + '/' + iso.slice(5, 7); }
+function rotWeek(S, mondayIso) {
+    const diff = Math.round((parseISO(mondayIso) - parseISO(mondayOf(S.startDato))) / (7 * 864e5));
+    return ((diff % 4) + 4) % 4;
+}
+function dagIdxFor(S, iso) {
+    const w = weekdayIdx(iso);
+    if (w >= 5) return null;
+    return w < 4 ? w : 4 + rotWeek(S, mondayOf(iso));
+}
+
+/* ---------- personer ---------- */
+function personTotals(p) {
+    let mt = 0, fr = 0, has = false;
+    for (let d = 0; d < 8; d++) {
+        if (p.start[d] != null) { const m = p.slut[d] - p.start[d]; if (d < 4) mt += m; else fr += m; has = true; }
+    }
+    const total = 4 * mt + fr, norm = Math.round((p.timer || 0) * 240);
+    return { mt, fr, total, norm, diff: norm - total, fremaal: norm - 4 * mt, has };
+}
+function getBase(p, d) { return p.start[d] != null ? [p.start[d], p.slut[d]] : null; }
+
+function unikVagter(S, afd) {
+    const set = new Set();
+    for (const p of S.personer) if (p.afd === afd) for (let d = 0; d < 8; d++) if (p.start[d] != null) set.add(p.start[d] * 10000 + p.slut[d]);
+    return [...set].sort((a, b) => a - b).map(k => [Math.floor(k / 10000), k % 10000]);
+}
+
+/* ---------- hensyn ---------- */
+const hAppliesDay = (h, d) => !h.dage || h.dage.includes(d);
+const hBad = (h, s, e) => h.type === 'fridag' ? true : h.type === 'ikke_foer' ? s < h.min : h.type === 'ikke_efter' ? e > h.min : false;
+/* grundplan: kun hensyn uden datoer, pr. kolonne d (0-7) */
+function ruleViolations(S, p, d, s, e) {
+    const out = { hard: [], soft: [] };
+    for (const h of S.hensyn.person) {
+        if (h.personId !== p.id || h.fra || !hAppliesDay(h, d)) continue;
+        if (hBad(h, s, e)) (h.hard === 'skal' ? out.hard : out.soft).push(h);
+    }
+    return out;
+}
+/* ugeplan: både hensyn uden datoer (via rotationsdag di) og hensyn med datoer */
+function ruleViolationsDate(S, p, iso, di, s, e) {
+    const out = { hard: [], soft: [] };
+    for (const h of S.hensyn.person) {
+        if (h.personId !== p.id) continue;
+        if (h.fra) {
+            if (iso < h.fra || iso > (h.til || h.fra)) continue;
+            const wd = weekdayIdx(iso);
+            if (h.dage && !(wd < 4 ? h.dage.includes(wd) : h.dage.some(x => x >= 4))) continue;
+        } else if (di == null || !hAppliesDay(h, di)) continue;
+        if (hBad(h, s, e)) (h.hard === 'skal' ? out.hard : out.soft).push(h);
+    }
+    return out;
+}
+function hensynKort(S, h) {
+    let t = '';
+    if (h.type === 'ikke_foer') t = 'kan ikke starte før ' + fmtT(h.min);
+    else if (h.type === 'ikke_efter') t = 'kan ikke arbejde efter ' + fmtT(h.min);
+    else if (h.type === 'fridag') t = 'fri';
+    if (h.dage && h.dage.length < 8 && !(h.fra && h.dage.length === 5)) t += (h.type === 'fridag' ? ' ' : ' (') + dageTekst(h.dage) + (h.type === 'fridag' ? '' : ')');
+    else if (h.type === 'fridag') t += ' alle dage';
+    if (h.fra) t += ' · ' + (h.til && h.til !== h.fra ? fmtDK(h.fra) + '–' + fmtDK(h.til) : fmtDK(h.fra));
+    if (h.note) t += ' – ' + h.note;
+    return t;
+}
+function hensynTekst(S, h) {
+    const p = S.personer.find(x => x.id === h.personId);
+    return (p ? p.navn : '(slettet person)') + ': ' + hensynKort(S, h);
+}
+function dageTekst(dage) {
+    const s = [...dage].sort((a, b) => a - b);
+    if (s.length === 4 && s.join() === '4,5,6,7') return 'alle fredage';
+    return s.map(d => DAGE[d].toLowerCase()).join(', ');
+}
+function memberOf(rule, p) {
+    return p.afd === rule.afd && (!rule.stue || p.stue === rule.stue) && (!rule.kval || p.kval === rule.kval);
+}
+const ALLE_DAGE = [0, 1, 2, 3, 4, 5, 6, 7];
+function ruleDage(rule) { return rule.dage || ALLE_DAGE; }
+function ruleSlots(rule) { const a = []; for (let m = rule.fra; m < rule.til; m += SLOT_TRIN) a.push(m); return a; }
+function bemandingTekst(rule) {
+    const dg = ruleDage(rule), alle = dg.length === 8, mt = dg.length === 4 && dg.join() === '0,1,2,3';
+    return (rule.stue || 'Hele afdelingen ' + rule.afd) + ' ' + fmtT(rule.fra) + '-' + fmtT(rule.til) + ': mindst ' + rule.min + (rule.kval ? ' ' + rule.kval.toLowerCase() : '') + (alle ? '' : ' (' + (mt ? 'man-tors' : dageTekst(dg)) + ')');
+}
+
+/* items: [{label, get:(p)=>[s,e]|null}] -> sammenhængende huller */
+function coverageIssues(S, afd, items) {
+    const issues = [];
+    for (const rule of S.hensyn.bemanding) {
+        if (rule.afd !== afd) continue;
+        const mem = S.personer.filter(p => memberOf(rule, p));
+        const slots = ruleSlots(rule);
+        const dg = ruleDage(rule);
+        items.forEach((it, di) => {
+            if (items.length === 8 && !dg.includes(di)) return;
+            if (items.length !== 8 && !dg.includes(it.dagIdx)) return;
+            let cur = null;
+            for (const m of slots) {
+                let cnt = 0;
+                for (const p of mem) { const sh = it.get(p); if (sh && sh[0] <= m && m < sh[1]) cnt++; }
+                if (cnt < rule.min) {
+                    if (cur && cur.to === m) { cur.to = m + SLOT_TRIN; cur.worst = Math.min(cur.worst, cnt); }
+                    else { cur = { rule, day: di, label: it.label, from: m, to: m + SLOT_TRIN, worst: cnt }; issues.push(cur); }
+                } else cur = null;
+            }
+        });
+    }
+    return issues;
+}
+function issueTekst(is) {
+    return is.label + ' · ' + (is.rule.stue || 'Hele afdelingen') + ' ' + fmtT(is.from) + '-' + fmtT(is.to) + ': ' + is.worst + ' af ' + is.rule.min + (is.rule.kval ? ' ' + is.rule.kval.toLowerCase() : '') + (is.rule.hard === 'skal' ? '' : ' (gerne)');
+}
+function baseItems() { return DAGE.map((n, d) => ({ label: n, get: p => getBase(p, d) })); }
+
+/* matrix til dækningsvisning: stue='' = hele afdelingen */
+function coverageMatrix(S, afd, stue, items) {
+    const mem = S.personer.filter(p => p.afd === afd && (!stue || p.stue === stue));
+    const rows = [];
+    for (let m = SLOT_FRA; m <= SLOT_TIL; m += SLOT_TRIN) {
+        const krav = items.map((it, di) => { let k = 0; const dd = items.length === 8 ? di : it.dagIdx;
+            for (const r of S.hensyn.bemanding) {
+                if (r.afd !== afd || (r.stue || '') !== (stue || '') || r.kval || !ruleDage(r).includes(dd)) continue;
+                if (m >= r.fra && m < r.til && r.min > k) k = r.min;
+            } return k; });
+        const counts = items.map(it => { let c = 0; for (const p of mem) { const sh = it.get(p); if (sh && sh[0] <= m && m < sh[1]) c++; } return c; });
+        rows.push({ m, krav, counts });
+    }
+    return rows;
+}
+
+/* ---------- ugeplan ---------- */
+function findAbs(S, pid, iso) {
+    for (const f of S.fravaer) if (f.personId === pid && f.fra <= iso && iso <= f.til) return f;
+    return null;
+}
+function effInfo(S, p, iso) {
+    const di = dagIdxFor(S, iso);
+    const base = di == null ? null : getBase(p, di);
+    const ovd = S.overstyr[iso];
+    const ov = ovd && Object.prototype.hasOwnProperty.call(ovd, p.id) ? ovd[p.id] : undefined;
+    const ab = findAbs(S, p.id, iso);
+    let shift = base, over = false;
+    if (ov !== undefined) { shift = ov ? [ov.s, ov.e] : null; over = true; }
+    const need = shift;           // det der ville være arbejdet hvis ikke fraværende
+    if (ab) shift = null;
+    return { shift, need, base, over, abs: ab, di };
+}
+function weekMinutes(S, p, monday) {
+    let t = 0;
+    for (let k = 0; k < 5; k++) { const i = effInfo(S, p, addDays(monday, k)); if (i.need) t += i.need[1] - i.need[0]; }
+    return t;
+}
+function weekItems(S, monday) {
+    return [0, 1, 2, 3, 4].map(k => { const iso = addDays(monday, k); return { label: UGEDAGE[k] + ' ' + fmtDK(iso), iso, dagIdx: k < 4 ? k : (dagIdxFor(S, iso)), get: p => effInfo(S, p, iso).shift }; });
+}
+
+function findAfloeser(S, absentP, iso) {
+    const info = effInfo(S, absentP, iso);
+    const need = info.need;
+    if (!need) return { need: null, list: [] };
+    const di = dagIdxFor(S, iso), monday = mondayOf(iso), dur = need[1] - need[0];
+    const list = [];
+    for (const q of S.personer) {
+        if (q.id === absentP.id || !(q.timer > 0) || q.auto === false || q.afd !== absentP.afd) continue;
+        const qi = effInfo(S, q, iso);
+        if (qi.abs || qi.shift) continue;
+        const v = ruleViolationsDate(S, q, iso, di, need[0], need[1]);
+        if (v.hard.length) continue;
+        // 11 timers hvile
+        const pd = effInfo(S, q, addDays(iso, -1)).shift, nd = effInfo(S, q, addDays(iso, 1)).shift;
+        if (weekdayIdx(iso) > 0 && pd && need[0] + 1440 - pd[1] < MIN_HVILE) continue;
+        if (weekdayIdx(iso) < 4 && nd && nd[0] + 1440 - need[1] < MIN_HVILE) continue;
+        const wk = weekMinutes(S, q, monday), norm = Math.round(q.timer * 60);
+        const owed = norm - wk, after = wk + dur, over = Math.max(0, after - norm);
+        let score = Math.min(Math.max(owed, 0), dur) / 3 - over / 3 + (q.stue === absentP.stue ? 25 : 0) + (q.afd === absentP.afd ? 15 : 0)
+            + (absentP.kval && q.kval === absentP.kval ? 10 : 0) - 40 * v.soft.length;
+        const why = [];
+        why.push(owed > 0 ? 'mangler ' + fmtDiff(owed) + ' t i ugen' : 'har allerede fuld uge');
+        if (over > 0) why.push('giver ' + fmtDiff(over) + ' t ekstra');
+        if (q.stue === absentP.stue) why.push('samme stue'); else why.push('stue: ' + q.stue + (q.afd !== absentP.afd ? ' (' + q.afd + ')' : ''));
+        if (absentP.kval && q.kval === absentP.kval) why.push(q.kval.toLowerCase());
+        for (const h of v.soft) why.push('bryder ønske: ' + hensynKort(S, h));
+        list.push({ p: q, score, why, wk, norm });
+    }
+    list.sort((a, b) => b.score - a.score);
+    return { need, list };
+}
+
+/* ---------- autogenerering (simuleret afkøling) ---------- */
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const prevOf = d => d === 0 ? [4, 5, 6, 7] : d <= 3 ? [d - 1] : [3];
+const nextOf = d => d < 3 ? [d + 1] : d === 3 ? [4, 5, 6, 7] : [0];
+
+function solve(S, opts) {
+    opts = Object.assign({ mode: 'rest', iter: 200000, seed: (Date.now() % 2147483647) }, opts || {});
+    const rnd = mulberry32(opts.seed);
+    const P = S.personer, n = P.length;
+    const cur = P.map(p => Array.from({ length: 8 }, (_, d) => getBase(p, d)));
+    const orig = cur.map(a => a.map(x => x ? x.slice() : null));
+    const free = P.map(() => Array(8).fill(false));
+    P.forEach((p, i) => {
+        if (!(p.timer > 0) || p.auto === false) return;
+        const t = personTotals(p);
+        if (opts.mode === 'rest') {
+            for (let d = 0; d < 8; d++) if (p.start[d] == null || (p.forslag && p.forslag[d])) { free[i][d] = true; cur[i][d] = null; }
+        } else if (t.has && t.mt > 0 && t.diff !== 0) {
+            for (let d = 4; d < 8; d++) free[i][d] = true;
+        }
+    });
+    const anyFree = free.some(a => a.some(Boolean));
+    if (!anyFree) return { changed: 0, none: true };
+
+    /* kandidatvagter */
+    const startSet = new Set(), endSet = new Set(), STD = new Set();
+    P.forEach((p, i) => { for (let d = 0; d < 8; d++) if (!free[i][d] && cur[i][d]) { startSet.add(cur[i][d][0]); endSet.add(cur[i][d][1]); STD.add(cur[i][d][0] * 10000 + cur[i][d][1]); } });
+    P.forEach(p => { for (let d = 0; d < 8; d++) if (p.start[d] != null) { startSet.add(p.start[d]); endSet.add(p.slut[d]); STD.add(p.start[d] * 10000 + p.slut[d]); } });
+    const IND = indstFor(S);
+    let earliest = Math.min(...startSet, ...IND.open), latest = Math.max(...endSet, ...IND.close);
+    for (let m = Math.ceil(earliest / 15) * 15; m <= 540; m += 15) startSet.add(m);
+    IND.open.forEach(m => startSet.add(m));
+    for (let m = 600; m <= latest; m += 15) endSet.add(m);
+    IND.close.forEach(m => endSet.add(m));
+    const LIB = [];
+    for (const s of [...startSet].sort((a, b) => a - b)) for (const e of [...endSet].sort((a, b) => a - b)) {
+        const du = e - s; if (du >= 180 && du <= 540 && s >= earliest && e <= latest) LIB.push([s, e]);
+    }
+    const STDL = [...STD].map(k => [Math.floor(k / 10000), k % 10000]).filter(x => x[1] - x[0] >= 180);
+
+    /* hensyn pr. person */
+    const prules = P.map(p => S.hensyn.person.filter(h => h.personId === p.id && !h.fra));
+    const hardOK = (i, d, s, e) => {
+        const du = e - s; if (du < 180 || du > 540 || s < IND.open[d] || e > IND.close[d]) return false;
+        for (const h of prules[i]) {
+            if (h.hard !== 'skal' || !hAppliesDay(h, d)) continue;
+            if (hBad(h, s, e)) return false;
+        }
+        for (const pd of prevOf(d)) { const sh = cur[i][pd]; if (sh && s + 1440 - sh[1] < MIN_HVILE) return false; }
+        for (const nd of nextOf(d)) { const sh = cur[i][nd]; if (sh && sh[0] + 1440 - e < MIN_HVILE) return false; }
+        return true;
+    };
+    const softPen = (i, d, sh) => {
+        let pen = 0;
+        if (opts.mode === 'fredage') { const o = orig[i][d]; if (!((o && sh && o[0] === sh[0] && o[1] === sh[1]) || (!o && !sh))) pen += 30; }
+        if (!sh) return pen;
+        for (const h of prules[i]) {
+            if (h.hard === 'skal' || !hAppliesDay(h, d)) continue;
+            if (hBad(h, sh[0], sh[1])) pen += 150;
+        }
+        if (!STD.has(sh[0] * 10000 + sh[1])) pen += (d < 4 ? 120 : 20);
+        return pen;
+    };
+
+    /* dækningsregler */
+    const R = S.hensyn.bemanding.map(r => ({ r, slots: ruleSlots(r), w: r.hard === 'skal' ? 300 : 100 }));
+    const memb = P.map(p => { const a = []; R.forEach((x, k) => { if (memberOf(x.r, p)) a.push(k); }); return a; });
+    const cnt = R.map(x => Array.from({ length: 8 }, () => Array(x.slots.length).fill(0)));
+    let covCost = 0;
+    const covApply = (i, d, sh, sign) => {
+        if (!sh) return 0; let delta = 0;
+        for (const k of memb[i]) {
+            const x = R[k], mn = x.r.min, row = cnt[k][d];
+            if (!ruleDage(x.r).includes(d)) continue;
+            for (let j = 0; j < x.slots.length; j++) {
+                const m = x.slots[j];
+                if (sh[0] <= m && m < sh[1]) {
+                    const o = row[j], nw = o + sign;
+                    delta += x.w * (Math.max(0, mn - nw) - Math.max(0, mn - o));
+                    row[j] = nw;
+                }
+            }
+        }
+        return delta;
+    };
+    const hasFree = free.map(a => a.some(Boolean));
+    const WH = 8;
+    const tot = P.map((p, i) => { let t = 0; for (let d = 0; d < 8; d++) if (cur[i][d]) t += (d < 4 ? 4 : 1) * (cur[i][d][1] - cur[i][d][0]); return t; });
+    const norm = P.map(p => Math.round((p.timer || 0) * 240));
+    const hourCost = i => hasFree[i] ? WH * Math.abs(tot[i] - norm[i]) : 0;
+    let cost = 0;
+    for (let i = 0; i < n; i++) { cost += hourCost(i); for (let d = 0; d < 8; d++) { if (cur[i][d]) { covCost += covApply(i, d, cur[i][d], 1); if (free[i][d]) cost += softPen(i, d, cur[i][d]); } } }
+    cost += covCost;
+    // ikke-frie celler indgår i dækning men ændres ikke; frie celler starter tomme (mode rest) eller som de er (mode fredage)
+
+    /* startløsning: fyld tomme MT-celler med typiske vagter */
+    if (opts.mode === 'rest') {
+        P.forEach((p, i) => {
+            if (!hasFree[i] || !LIB.length) return;
+            const target = (p.timer || 0) * 12;     // minutter pr. dag
+            for (let d = 0; d < 8; d++) {
+                if (!free[i][d]) continue;
+                const cands = STDL.filter(x => Math.abs((x[1] - x[0]) - target) <= 45 && hardOK(i, d, x[0], x[1]));
+                if (!cands.length) continue;
+                const sh = cands[Math.floor(rnd() * cands.length)];
+                cost -= hourCost(i); const oldCov = covCost;
+                tot[i] += (d < 4 ? 4 : 1) * (sh[1] - sh[0]);
+                const dc = covApply(i, d, sh, 1); covCost += dc; cost += dc + softPen(i, d, sh) + hourCost(i);
+                cur[i][d] = sh;
+            }
+        });
+    }
+
+    const freeList = [];
+    P.forEach((p, i) => { for (let d = 0; d < 8; d++) if (free[i][d]) freeList.push([i, d]); });
+
+    function tryMove(i, d, ns, T) {
+        const os = cur[i][d];
+        if (os && ns && os[0] === ns[0] && os[1] === ns[1]) return false;
+        cur[i][d] = null;
+        if (ns && !hardOK(i, d, ns[0], ns[1])) { cur[i][d] = os; return false; }
+        const dOld = os ? (d < 4 ? 4 : 1) * (os[1] - os[0]) : 0, dNew = ns ? (d < 4 ? 4 : 1) * (ns[1] - ns[0]) : 0;
+        const oldHour = hourCost(i);
+        tot[i] += dNew - dOld;
+        let delta = hourCost(i) - oldHour;
+        const cOld = covApply(i, d, os, -1), cNew = covApply(i, d, ns, 1);
+        delta += cOld + cNew + softPen(i, d, ns) - softPen(i, d, os);
+        if (delta <= 0 || (T > 0 && rnd() < Math.exp(-delta / T))) { cur[i][d] = ns; cost += delta; return true; }
+        // fortryd
+        covApply(i, d, ns, -1); covApply(i, d, os, 1);
+        tot[i] -= dNew - dOld; cur[i][d] = os;
+        return false;
+    }
+    function proposal(i, d) {
+        if (!LIB.length) return null;
+        const os = cur[i][d]; const r = rnd();
+        if (os && r < 0.10) return null;
+        const STEP = [5, 10, 15, 15, 15, 30];
+        if (os && r < 0.40) { const dd = (rnd() < 0.5 ? -1 : 1) * STEP[Math.floor(rnd() * STEP.length)]; return [os[0], os[1] + dd]; }
+        if (os && r < 0.55) { const dd = (rnd() < 0.5 ? -1 : 1) * STEP[Math.floor(rnd() * STEP.length)]; return [os[0] + dd, os[1]]; }
+        if (r < 0.85 && STDL.length) return STDL[Math.floor(rnd() * STDL.length)];
+        return LIB[Math.floor(rnd() * LIB.length)];
+    }
+    const T0 = 160, T1 = 0.5, N = opts.iter;
+    for (let it = 0; it < N; it++) {
+        const T = T0 * Math.pow(T1 / T0, it / N);
+        const [i, d] = freeList[Math.floor(rnd() * freeList.length)];
+        tryMove(i, d, proposal(i, d), T);
+    }
+    for (let it = 0; it < N / 4; it++) {      // ren nedstigning
+        const [i, d] = freeList[Math.floor(rnd() * freeList.length)];
+        tryMove(i, d, proposal(i, d), 0);
+    }
+    /* skriv tilbage */
+    let changed = 0;
+    P.forEach((p, i) => {
+        if (!p.forslag) p.forslag = Array(8).fill(false);
+        for (let d = 0; d < 8; d++) {
+            if (!free[i][d]) continue;
+            const a = cur[i][d], o = orig[i][d];
+            const same = (!a && !o) || (a && o && a[0] === o[0] && a[1] === o[1]);
+            p.start[d] = a ? a[0] : null; p.slut[d] = a ? a[1] : null;
+            if (opts.mode === 'rest') p.forslag[d] = !!a;
+            else p.forslag[d] = !!a && (!same || p.forslag[d]);
+            if (!same) changed++;
+        }
+    });
+    return { changed, seed: opts.seed, cost, free: P.filter((p, i) => free[i].some(Boolean)).map(p => p.id) };
+}
+
+/* rapport efter autogenerering / til hensyn-panel */
+function analyse(S, afd) {
+    const out = { norm: [], dæk: [], bløde: [], hårde: [], udenfor: [] };
+    const IND = indstFor(S);
+    for (const p of S.personer) {
+        if (p.afd !== afd) continue;
+        const t = personTotals(p);
+        if (t.has && t.norm > 0 && t.diff !== 0) out.norm.push({ p, diff: t.diff });
+        for (let d = 0; d < 8; d++) {
+            if (p.start[d] == null) continue;
+            if (p.start[d] < IND.open[d] || p.slut[d] > IND.close[d]) out.udenfor.push({ p, d });
+            const v = ruleViolations(S, p, d, p.start[d], p.slut[d]);
+            for (const h of v.hard) out.hårde.push({ p, d, h });
+            for (const h of v.soft) out.bløde.push({ p, d, h });
+        }
+    }
+    out.dæk = coverageIssues(S, afd, baseItems());
+    return out;
+}
+
+/* ---------- åbningstider pr. ugedag ---------- */
+function indstFor(S) {
+    const x = S.indst || {};
+    const arr = (v, def) => Array.isArray(v) && v.length === 5 ? v : Array(5).fill(typeof v === 'number' ? v : def);
+    const a = arr(x.aabner, 380), l = arr(x.lukker, 1020);
+    const wd = d => d < 4 ? d : 4;
+    return { aabnerUge: a, lukkerUge: l, open: Array.from({ length: 8 }, (_, d) => a[wd(d)]), close: Array.from({ length: 8 }, (_, d) => l[wd(d)]) };
+}
+
+/* ---------- tilstand ---------- */
+function nyId(S, pre) { S._n = (S._n || 1000) + 1; return pre + S._n; }
+function sorterPersoner(S, afd) {
+    const res = [];
+    const afdObj = S.afdelinger.find(a => a.id === afd);
+    for (const stue of afdObj.stuer) res.push({ stue, personer: S.personer.filter(p => p.afd === afd && p.stue === stue) });
+    const orphan = S.personer.filter(p => p.afd === afd && !afdObj.stuer.includes(p.stue));
+    if (orphan.length) res.push({ stue: '(uden stue)', personer: orphan, orphan: true });
+    return res;
+}
+function csvEksport(S, afd) {
+    const rows = [['Stue', 'Navn', 'Timer', ...DAGE, 'Total', 'Norm', 'Forskel', 'Fredage skal give']];
+    for (const g of sorterPersoner(S, afd)) for (const p of g.personer) {
+        const t = personTotals(p);
+        rows.push([g.stue, p.navn, String(p.timer).replace('.', ','), ...DAGE.map((_, d) => p.start[d] != null ? fmtVagt(p.start[d], p.slut[d]) : ''),
+            t.has ? fmtDiff(t.total) : '', t.norm ? fmtDiff(t.norm) : '', t.has && t.norm ? fmtDiff(t.diff) : '', t.has && t.norm ? fmtDiff(t.fremaal) : '']);
+    }
+    return rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(';')).join('\r\n');
+}
+if (typeof module !== 'undefined' && module.exports !== undefined) module.exports = { ruleViolationsDate, hensynKort, indstFor, ruleDage, bemandingTekst, coverageMatrix, parseTid, parseVagt, personTotals, solve, analyse, coverageIssues, baseItems, effInfo, findAfloeser, dagIdxFor, rotWeek, mondayOf, addDays, fmtVagt, fmtDiff, fmtT, unikVagter, ruleViolations, weekItems, csvEksport, weekMinutes };
+</script>
+<script>/* ===================== UI ===================== */
+const KEY = 'vagtplan_v1';
+const KVAL = ['', 'Pædagog', 'Medhjælp', 'Vikar', 'Studerende'];
+const FRAVAER_TYPER = ['Fravær', 'Ferie', 'Fri', 'Kursus', 'Andet'];
+let S, UI = { tab: 'grund', afd: 'VS', week: null, open: {} };
+const undoStack = [];
+
+function esc(x) { return String(x == null ? '' : x).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+const $ = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => [...(r || document).querySelectorAll(s)];
+function todayISO() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+
+/* ---------- tilstand ---------- */
+function defaultState() {
+    const st = JSON.parse(JSON.stringify(SEED));
+    st.personer.forEach(p => { p.forslag = Array(8).fill(false); });
+    st.startDato = '2026-11-02';
+    st.indst = { aabner: [380, 380, 380, 380, 380], lukker: [1020, 1020, 1020, 1020, 960] };
+    st.fravaer = []; st.overstyr = {}; st.log = []; st.meta = { sidstBackup: null };
+    st.hensynTekst = '';
+    st.hensyn = { person: [], bemanding: [] };
+    let n = 0;
+    for (const a of st.afdelinger) {
+        st.hensyn.bemanding.push({ id: 'b' + (++n), afd: a.id, stue: '', fra: 390, til: 450, min: 1, kval: '', hard: 'skal', dage: [0, 1, 2, 3, 4, 5, 6, 7], eksempel: true });
+        st.hensyn.bemanding.push({ id: 'b' + (++n), afd: a.id, stue: '', fra: 960, til: 1020, min: 1, kval: '', hard: 'skal', dage: [0, 1, 2, 3], eksempel: true });
+        for (const s of a.stuer) if (!['Køkken', 'Græshopperne'].includes(s))
+            st.hensyn.bemanding.push({ id: 'b' + (++n), afd: a.id, stue: s, fra: 510, til: 870, min: 2, kval: '', hard: 'skal', dage: [0, 1, 2, 3, 4, 5, 6, 7], eksempel: true });
+    }
+    st._n = 1000;
+    return st;
+}
+function load() {
+    try { const raw = localStorage.getItem(KEY); if (raw) { S = JSON.parse(raw); return; } } catch (e) { }
+    S = defaultState();
+}
+function migrer() {
+    const i = indstFor(S); S.indst = { aabner: i.aabnerUge, lukker: i.lukkerUge };
+    /* ingen helbredsoplysninger: neutrale fraværstyper og navne */
+    (S.fravaer || []).forEach(f => { if (f.type === 'Syg' || f.type === 'Barns sygedag') f.type = 'Fravær'; });
+    (S.log || []).forEach(l => { l.tekst = l.tekst.replace(/: (Syg|Barns sygedag) /g, ': Fravær '); });
+    (S.personer || []).forEach(p => { if (/barsel/i.test(p.navn)) p.navn = p.navn.replace(/\s*\/?\s*barsel/i, '').trim(); });
+    commit();
+}
+function commit() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('Kunne ikke gemme i browseren – tag en backup!', true); } fsSchedule(); odSchedule(); }
+function snapshot() { undoStack.push(JSON.stringify(S)); if (undoStack.length > 60) undoStack.shift(); $('#btnUndo').disabled = false; }
+function undo() { if (!undoStack.length) return; S = JSON.parse(undoStack.pop()); commit(); render(); toast('Seneste ændring fortrudt'); $('#btnUndo').disabled = !undoStack.length; }
+function logg(t) { S.log.unshift({ t: new Date().toLocaleString('da-DK'), tekst: t }); if (S.log.length > 100) S.log.length = 100; }
+function afdObj(id) { return S.afdelinger.find(a => a.id === id); }
+
+/* ---------- automatisk gem til fil (Chrome/Edge) ---------- */
+const FS = { supported: typeof window.showSaveFilePicker === 'function', handle: null, ok: false, lastSaved: null, lastSeen: '', timer: null, err: null, busy: false };
+function idb(op, key, val) {
+    return new Promise((res, rej) => {
+        const r = indexedDB.open('vagtplan', 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('kv');
+        r.onerror = () => rej(r.error);
+        r.onsuccess = () => {
+            const st = r.result.transaction('kv', op === 'get' ? 'readonly' : 'readwrite').objectStore('kv');
+            const q = op === 'get' ? st.get(key) : op === 'set' ? st.put(val, key) : st.delete(key);
+            q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error);
+        };
+    });
+}
+async function fsInit() {
+    if (!FS.supported) { updateHeader(); return; }
+    try {
+        const h = await idb('get', 'handle');
+        if (h) { FS.handle = h; FS.ok = (await h.queryPermission({ mode: 'readwrite' })) === 'granted'; if (FS.ok) await fsCheckNewer(); }
+    } catch (e) { FS.err = String(e && e.message || e); }
+    updateHeader();
+}
+async function fsRead() {
+    const f = await FS.handle.getFile(); const t = await f.text(); if (!t.trim()) return null;
+    try { const x = JSON.parse(t); return x && x.personer && x.afdelinger ? x : null; } catch (e) { return null; }
+}
+function fmtStempel(iso) { return iso ? new Date(iso).toLocaleString('da-DK', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '?'; }
+async function fsCheckNewer() {
+    const x = await fsRead(); if (!x) return;
+    const fsT = (x.meta && x.meta.savedAt) || '', mine = (S.meta && S.meta.savedAt) || '';
+    FS.lastSeen = fsT;
+    if (fsT && fsT > mine && confirm('Filen "' + FS.handle.name + '" er nyere (gemt ' + fmtStempel(fsT) + ') end data i browseren' + (mine ? ' (gemt ' + fmtStempel(mine) + ')' : '') + '.\n\nOK = indlæs data fra filen\nAnnuller = behold browserens data (filen bliver overskrevet)')) {
+        S = x; if (!S.meta) S.meta = {}; migrer(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { } render();
+    }
+}
+async function fsPick() {
+    try {
+        const h = await window.showSaveFilePicker({ suggestedName: 'vagtplan-data.json', types: [{ description: 'Vagtplan-data', accept: { 'application/json': ['.json'] } }] });
+        FS.handle = h; FS.ok = true;
+        try { await idb('set', 'handle', h); } catch (e) { toast('Filen er valgt, men kan ikke huskes til næste gang i denne browser', true); }
+        await fsCheckNewer(); await fsWrite(true); updateHeader(); render();
+        toast('Automatisk gem er slået til: ' + h.name);
+    } catch (e) { if (e && e.name !== 'AbortError') toast('Kunne ikke vælge fil: ' + (e.message || e), true); }
+}
+async function fsReconnect() {
+    try {
+        FS.ok = (await FS.handle.requestPermission({ mode: 'readwrite' })) === 'granted';
+        if (FS.ok) { await fsCheckNewer(); await fsWrite(true); }
+    } catch (e) { FS.err = String(e && e.message || e); }
+    updateHeader(); render();
+}
+async function fsStop() { FS.handle = null; FS.ok = false; try { await idb('del', 'handle'); } catch (e) { } updateHeader(); render(); toast('Automatisk gem er slået fra'); }
+function fsSchedule() { if (!FS.handle || !FS.ok) return; clearTimeout(FS.timer); FS.timer = setTimeout(() => fsWrite(false), 1200); }
+async function fsWrite(force) {
+    if (!FS.handle || !FS.ok || FS.busy) return;
+    FS.busy = true;
+    try {
+        if (!force) {
+            const cur = await fsRead();
+            const ct = cur && cur.meta && cur.meta.savedAt || '';
+            if (ct && ct > FS.lastSeen) {
+                if (!confirm('Filen "' + FS.handle.name + '" er ændret et andet sted (gemt ' + fmtStempel(ct) + ') siden du sidst gemte.\n\nOK = overskriv filen med dine data\nAnnuller = indlæs filens data i stedet (dine seneste ændringer her går tabt)')) {
+                    S = cur; migrer(); FS.lastSeen = ct; localStorage.setItem(KEY, JSON.stringify(S)); FS.busy = false; render(); return;
+                }
+            }
+        }
+        S.meta.savedAt = new Date().toISOString();
+        try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { }
+        const w = await FS.handle.createWritable(); await w.write(JSON.stringify(S)); await w.close();
+        FS.lastSeen = S.meta.savedAt; FS.lastSaved = new Date(); FS.err = null;
+    } catch (e) { FS.err = String(e && e.message || e); FS.ok = false; }
+    FS.busy = false; updateHeader();
+}
+function updateHeader() {
+    const el = $('#backupHint'); if (!el) return;
+    let t, c = 'hintbtn';
+    const odS = odAvailable() && odStored();
+    if (odS && OD.ok && !OD.needLogin) { t = OD.offline ? '\u25B2 OneDrive: ingen forbindelse \u2013 gemmer n\u00e5r der er net' : '\u2714 Gemmer automatisk i OneDrive' + (OD.lastSaved ? ' (sidst ' + OD.lastSaved.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' }) + ')' : ''); c += OD.offline ? ' warn' : ' ok'; el.dataset.go = 'backup'; }
+    else if (odS && OD.needLogin) { t = '\u26A0 Log ind p\u00e5 OneDrive igen \u2013 tryk her'; c += ' warn'; el.dataset.go = 'odlogin'; }
+    else if (FS.handle && FS.ok) { t = '✔ Gemmer automatisk i ' + FS.handle.name + (FS.lastSaved ? ' (sidst ' + FS.lastSaved.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' }) + ')' : ''); c += ' ok'; el.dataset.go = 'backup'; }
+    else if (FS.handle) { t = '⚠ Klik her for at genoprette automatisk gem' + (FS.err ? ' – ' + FS.err.slice(0, 60) : ''); c += ' warn'; el.dataset.go = 'reconnect'; }
+    else if (FS.supported) { t = '⚠ Automatisk gem er ikke slået til – klik her'; c += ' warn'; el.dataset.go = 'backup'; }
+    else {
+        const sb = S.meta && S.meta.sidstBackup, dage = sb ? Math.floor((Date.now() - new Date(sb)) / 864e5) : null;
+        t = sb ? 'Sidste backup: ' + new Date(sb).toLocaleDateString('da-DK') + (dage >= 7 ? ' – tag en ny' : '') : 'Husk at tage en backup (fanen Backup)'; c += (sb && dage < 7) ? '' : ' warn'; el.dataset.go = 'backup';
+    }
+    el.textContent = t; el.className = c;
+}
+
+/* ---------- automatisk gem i OneDrive (Microsoft Graph, app-mappe) ---------- */
+const CFG = (typeof window.VAGTPLAN_CONFIG === 'object' && window.VAGTPLAN_CONFIG) || {};
+const MS = { authority: CFG.authority || 'https://login.microsoftonline.com/common/oauth2/v2.0', graph: CFG.graphBase || 'https://graph.microsoft.com/v1.0', scope: 'Files.ReadWrite.AppFolder offline_access' };
+const OD = { ok: false, lastSaved: null, lastSeen: '', timer: null, busy: false, err: null, needLogin: false, offline: false };
+function odAvailable() { return location.protocol.indexOf('http') === 0; }
+function odClientId() { return CFG.clientId || localStorage.getItem('vagtplan_msid') || ''; }
+function odRedirect() { return new URL('index.html', document.baseURI).href; }
+function odStored() { try { return JSON.parse(localStorage.getItem('vagtplan_ms') || 'null'); } catch (e) { return null; } }
+function b64url(arr) { let s = ''; new Uint8Array(arr).forEach(b => { s += String.fromCharCode(b); }); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+async function odLogin() {
+    const id = odClientId();
+    if (!id) { toast('Skriv f\u00f8rst program-id (client id) fra Microsoft', true); return; }
+    const ver = b64url(crypto.getRandomValues(new Uint8Array(48))), state = b64url(crypto.getRandomValues(new Uint8Array(16)));
+    const chal = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ver)));
+    localStorage.setItem('vagtplan_pkce', JSON.stringify({ ver, state, t: Date.now() }));
+    const p = new URLSearchParams({ client_id: id, response_type: 'code', redirect_uri: odRedirect(), response_mode: 'query', scope: MS.scope, state, code_challenge: chal, code_challenge_method: 'S256' });
+    location.href = MS.authority + '/authorize?' + p.toString();
+}
+async function odTokenCall(params) {
+    const r = await fetch(MS.authority + '/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(params).toString() });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.access_token) throw new Error(j.error_description || j.error || ('HTTP ' + r.status));
+    const prev = odStored() || {};
+    localStorage.setItem('vagtplan_ms', JSON.stringify({ access: j.access_token, refresh: j.refresh_token || prev.refresh, exp: Date.now() + (j.expires_in || 3600) * 1000 - 120000 }));
+}
+async function odHandleRedirect() {
+    const q = new URLSearchParams(location.search);
+    if (!q.has('code') && !q.has('error')) return false;
+    const clean = () => { try { history.replaceState({}, '', odRedirect()); } catch (e) { } };
+    if (q.has('error')) { toast('Microsoft-login mislykkedes: ' + (q.get('error_description') || q.get('error')), true); clean(); return true; }
+    let pk = null; try { pk = JSON.parse(localStorage.getItem('vagtplan_pkce') || 'null'); } catch (e) { }
+    localStorage.removeItem('vagtplan_pkce'); clean();
+    if (!pk || pk.state !== q.get('state')) { toast('Login kunne ikke bekr\u00e6ftes. Pr\u00f8v igen.', true); return true; }
+    try {
+        await odTokenCall({ client_id: odClientId(), scope: MS.scope, code: q.get('code'), redirect_uri: odRedirect(), grant_type: 'authorization_code', code_verifier: pk.ver });
+        OD.ok = true; OD.needLogin = false; toast('Forbundet til OneDrive');
+        await odCheckNewer(); await odWrite(true);
+    } catch (e) { OD.err = String(e.message || e); toast('Login mislykkedes: ' + OD.err, true); }
+    return true;
+}
+async function odToken() {
+    const s = odStored(); if (!s) return null;
+    if (s.access && Date.now() < s.exp) return s.access;
+    if (!s.refresh) { OD.needLogin = true; return null; }
+    try {
+        await odTokenCall({ client_id: odClientId(), scope: MS.scope, refresh_token: s.refresh, grant_type: 'refresh_token' });
+        return odStored().access;
+    } catch (e) {
+        if (e instanceof TypeError) throw e;           // netv\u00e6rksfejl: pr\u00f8v igen senere
+        OD.needLogin = true; OD.ok = false; return null;
+    }
+}
+async function odFile(method, body) {
+    const t = await odToken(); if (!t) throw new Error('login');
+    const hdr = { Authorization: 'Bearer ' + t }; if (body != null) hdr['Content-Type'] = 'application/json';
+    return fetch(MS.graph + '/me/drive/special/approot:/vagtplan-data.json:/content', { method, headers: hdr, body });
+}
+async function odRead() {
+    const r = await odFile('GET');
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error('OneDrive svarede ' + r.status);
+    try { const x = JSON.parse(await r.text()); return x && x.personer && x.afdelinger ? x : null; } catch (e) { return null; }
+}
+async function odCheckNewer() {
+    const x = await odRead(); if (!x) return;
+    const fT = (x.meta && x.meta.savedAt) || '', mine = (S.meta && S.meta.savedAt) || '';
+    OD.lastSeen = fT;
+    if (fT && fT > mine && confirm('Filen i OneDrive er nyere (gemt ' + fmtStempel(fT) + ') end data p\u00e5 denne enhed' + (mine ? ' (gemt ' + fmtStempel(mine) + ')' : '') + '.\n\nOK = indl\u00e6s data fra OneDrive\nAnnuller = behold data p\u00e5 denne enhed (OneDrive bliver overskrevet)')) {
+        S = x; if (!S.meta) S.meta = {}; migrer(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { } render();
+    }
+}
+function odSchedule() { if (!OD.ok) return; clearTimeout(OD.timer); OD.timer = setTimeout(() => odWrite(false), 1500); }
+async function odWrite(force) {
+    if (!OD.ok || OD.busy) return;
+    OD.busy = true;
+    try {
+        if (!force) {
+            const cur = await odRead(); const ct = cur && cur.meta && cur.meta.savedAt || '';
+            if (ct && ct > OD.lastSeen) {
+                if (!confirm('Filen i OneDrive er \u00e6ndret et andet sted (gemt ' + fmtStempel(ct) + ') siden du sidst gemte.\n\nOK = overskriv OneDrive med dine data\nAnnuller = indl\u00e6s filens data i stedet (dine seneste \u00e6ndringer her g\u00e5r tabt)')) {
+                    S = cur; migrer(); OD.lastSeen = ct; localStorage.setItem(KEY, JSON.stringify(S)); OD.busy = false; render(); return;
+                }
+            }
+        }
+        S.meta.savedAt = new Date().toISOString();
+        try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { }
+        const r = await odFile('PUT', JSON.stringify(S));
+        if (!r.ok) throw new Error('OneDrive svarede ' + r.status);
+        OD.lastSeen = S.meta.savedAt; OD.lastSaved = new Date(); OD.err = null; OD.offline = false;
+    } catch (e) {
+        if (e instanceof TypeError) { OD.offline = true; OD.err = 'ingen forbindelse'; }
+        else if (String(e.message) === 'login') { OD.needLogin = true; OD.ok = false; }
+        else OD.err = String(e.message || e);
+    }
+    OD.busy = false; updateHeader();
+}
+async function odInit() {
+    if (!odAvailable()) return;
+    await odHandleRedirect();
+    const s = odStored();
+    if (s) {
+        try { const t = await odToken(); if (t) { OD.ok = true; await odCheckNewer(); } } catch (e) { OD.ok = true; OD.offline = true; }
+    }
+    updateHeader(); if (UI.tab === 'backup') render();
+}
+function odLogout() { localStorage.removeItem('vagtplan_ms'); OD.ok = false; OD.needLogin = false; OD.err = null; updateHeader(); render(); toast('Logget ud af OneDrive'); }
+window.addEventListener('online', () => { if (OD.ok && OD.offline) odWrite(false); });
+
+/* ---------- små hjælpere ---------- */
+function toast(msg, bad) {
+    const t = document.createElement('div'); t.className = 'toast' + (bad ? ' bad' : ''); t.textContent = msg;
+    $('#toasts').appendChild(t); setTimeout(() => t.remove(), bad ? 6000 : 3000);
+}
+function vagtFarve(i) { const h = Math.round((i * 137.508) % 360), l = [86, 80, 90][i % 3], s = [75, 90, 65][Math.floor(i / 3) % 3]; return 'hsl(' + h + ' ' + s + '% ' + l + '%)'; }
+function farveKort(afd) { const m = {}; unikVagter(S, afd).forEach((v, i) => { m[v[0] * 10000 + v[1]] = vagtFarve(i); }); return m; }
+function cls(...a) { return a.filter(Boolean).join(' '); }
+function modal(html, size) {
+    $('#modalBody').innerHTML = html; $('#modal').className = 'show ' + (size || ''); $('#modal').scrollTop = 0;
+}
+function closeModal() { $('#modal').className = ''; $('#modalBody').innerHTML = ''; }
+function download(name, text, mime) {
+    const b = new Blob([text], { type: mime || 'application/json' }); const a = document.createElement('a');
+    a.href = URL.createObjectURL(b); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+function timeVal(m) { return m == null ? '' : fmtT(m); }
+
+/* ---------- hovedvisning ---------- */
+const TABS = [['grund', 'Grundplan (4 uger)'], ['uge', 'Ugeplan og fravær'], ['hensyn', 'Hensyn'], ['pers', 'Personer og opsætning'], ['backup', 'Backup og hjælp']];
+function render() {
+    $('#tabs').innerHTML = TABS.map(([k, n]) => '<button class="tab ' + (UI.tab === k ? 'on' : '') + '" data-act="tab" data-k="' + k + '">' + n + '</button>').join('');
+    const v = { grund: viewGrund, uge: viewUge, hensyn: viewHensyn, pers: viewPersoner, backup: viewBackup }[UI.tab];
+    $('#main').innerHTML = v();
+    if (UI.tab === 'grund') updateGrid();
+    $('#btnUndo').disabled = !undoStack.length;
+    updateHeader();
+}
+function afdTabs() { return '<div class="afdtabs">' + S.afdelinger.map(a => '<button class="tab sm ' + (UI.afd === a.id ? 'on' : '') + '" data-act="afd" data-k="' + a.id + '">' + esc(a.navn) + '</button>').join('') + '</div>'; }
+
+/* ================= GRUNDPLAN ================= */
+function viewGrund() {
+    const afd = UI.afd, a = afdObj(afd);
+    let h = '';
+    if (!S.personer.length) h += '<div class="intro"><b>Velkommen.</b> Der er ingen medarbejdere endnu. Tryk <b>Backup og hj\u00e6lp</b> \u2192 <b>\u00c5bn backup\u2026</b> og v\u00e6lg din datafil (fx <i>Vagtplan-startdata.json</i>), eller tilf\u00f8j medarbejdere under <b>Personer og ops\u00e6tning</b>.</div>';
+    h += '<div class="toolbar">' + afdTabs() + '<span class="sp"></span>'
+        + '<button class="btn pri" data-act="auto-rest" title="Udfylder tomme felter (og tidligere forslag) for personer med Auto slået til">✨ Udfyld resten</button>'
+        + '<button class="btn" data-act="auto-fre" title="Justerer fredagene, så hver person rammer sin norm">Ret fredage til norm</button>'
+        + '<button class="btn" data-act="godkend">Godkend forslag</button><button class="btn" data-act="fjernforslag">Fjern forslag</button>'
+        + '<button class="btn" data-act="csv">Eksport\u00e9r CSV</button><button class="btn" data-act="print" title="Kun skemaet, \u00e9n side">Udskriv skema</button><button class="btn" data-act="print-alt" title="Skema plus tjek, d\u00e6kning og hensyn">Udskriv alt</button></div>';
+    h += '<div class="printhead">Grundplan \u2013 ' + esc(afd) + ' \u00b7 udskrevet ' + new Date().toLocaleDateString('da-DK') + '</div>';
+    h += '<div class="legend">Skriv vagter som <b>7.30-15.15</b> (Enter = næste række). <span class="fs">Kursiv med stiplet kant</span> = forslag fra programmet, ikke godkendt endnu. Tom celle = fri. Tallene opdateres med det samme.</div>';
+    h += '<div class="gridwrap"><table class="grid" id="grid"><thead><tr><th class="c1">Navn</th><th class="c2">Timer</th>';
+    DAGE.forEach((d, i) => { h += '<th class="day ' + (i === 4 ? 'sepl' : '') + '">' + d + '<div class="dt">' + esc(a.dagtekster[i] || '') + '</div></th>'; });
+    h += '<th class="num sepl">Total</th><th class="num">Norm</th><th class="num">Forskel</th><th class="num" title="Hvad de fire fredage tilsammen skal give for at ramme normen">Fredage skal give</th></tr></thead><tbody>';
+    for (const g of sorterPersoner(S, afd)) {
+        const sum = g.personer.reduce((t, p) => t + (p.timer || 0), 0);
+        h += '<tr class="stue"><td class="c1" colspan="2">' + esc(g.stue) + ' <span class="muted">' + (sum ? sum.toLocaleString('da-DK') + ' t' : '') + '</span></td><td colspan="12"></td></tr>';
+        for (const p of g.personer) {
+            h += '<tr data-p="' + p.id + '"><td class="c1 nm">' + esc(p.navn) + (p.note ? ' <span class="note" title="Note">(' + esc(p.note) + ')</span>' : '') + (p.auto === false ? ' <span class="note" title="Auto er slået fra: programmet foreslår ikke vagter eller afløsning">· uden auto</span>' : '') + '</td><td class="c2 tm">' + (p.timer ? String(p.timer).replace('.', ',') : '') + '</td>';
+            for (let d = 0; d < 8; d++) h += '<td class="' + (d === 4 ? 'sepl' : '') + '"><input class="cell" data-p="' + p.id + '" data-d="' + d + '" data-chg="cell" autocomplete="off"></td>';
+            h += '<td class="num sepl tot"></td><td class="num nrm"></td><td class="num dif"></td><td class="num fre"></td></tr>';
+        }
+    }
+    h += '</tbody></table></div><div id="panels"></div>';
+    return h;
+}
+
+function updateGrid() {
+    const afd = UI.afd, fk = farveKort(afd);
+    $$('#grid tr[data-p]').forEach(tr => {
+        const p = S.personer.find(x => x.id === tr.dataset.p); if (!p) return;
+        for (let d = 0; d < 8; d++) {
+            const inp = $('input[data-d="' + d + '"]', tr); if (document.activeElement !== inp) inp.value = p.start[d] != null ? fmtVagt(p.start[d], p.slut[d]) : '';
+            inp.style.background = p.start[d] != null ? fk[p.start[d] * 10000 + p.slut[d]] : '';
+            inp.classList.toggle('fs', !!(p.forslag && p.forslag[d]));
+            const v = p.start[d] != null ? ruleViolations(S, p, d, p.start[d], p.slut[d]) : { hard: [], soft: [] };
+            inp.classList.toggle('viol', v.hard.length > 0); inp.classList.toggle('soft', !v.hard.length && v.soft.length > 0);
+            inp.title = [...v.hard.map(h => 'SKAL brudt: ' + hensynTekst(S, h)), ...v.soft.map(h => 'Ønske brudt: ' + hensynTekst(S, h))].join('\n');
+        }
+        const t = personTotals(p);
+        $('.tot', tr).textContent = t.has ? fmtDiff(t.total) : '';
+        $('.nrm', tr).textContent = t.norm ? fmtDiff(t.norm) : '';
+        const dif = $('.dif', tr), fre = $('.fre', tr), tot = $('.tot', tr);
+        dif.textContent = t.has && t.norm ? fmtDiff(t.diff) : '';
+        fre.textContent = t.has && t.norm && t.mt > 0 ? fmtDiff(t.fremaal) : '';
+        tot.className = 'num sepl tot ' + (t.has && t.norm ? (t.diff > 0 ? 'good' : t.diff < 0 ? 'bad' : '') : '');
+        dif.className = 'num dif ' + (t.has && t.norm && t.diff < 0 ? 'bad' : '');
+    });
+    $('#panels').innerHTML = panelsHtml(afd);
+}
+
+function panelsHtml(afd) {
+    const A = analyse(S, afd), fk = farveKort(afd), a = afdObj(afd);
+    const open = k => UI.open[k] !== false ? ' open' : '';
+    let h = '';
+    /* hensyn og huller */
+    const items = [];
+    A.hårde.forEach(x => items.push('<li class="bad">✘ ' + esc(x.p.navn) + ' · ' + DAGE[x.d] + ': ' + esc(hensynKort(S, x.h)) + ' (skal)</li>'));
+    A.dæk.forEach(x => items.push('<li class="' + (x.rule.hard === 'skal' ? 'bad' : 'warn') + '">' + (x.rule.hard === 'skal' ? '✘' : '▲') + ' ' + esc(issueTekst(x)) + '</li>'));
+    A.bløde.forEach(x => items.push('<li class="warn">▲ ' + esc(x.p.navn) + ' · ' + DAGE[x.d] + ': ' + esc(hensynKort(S, x.h)) + ' (gerne)</li>'));
+    A.udenfor.forEach(x => items.push('<li class="warn">▲ ' + esc(x.p.navn) + ' · ' + DAGE[x.d] + ': vagt uden for åbningstid (' + fmtVagt(x.p.start[x.d], x.p.slut[x.d]) + ')</li>'));
+    const nd = A.norm.length;
+    h += '<details class="panel" data-k="hensyn"' + open('hensyn') + '><summary>Hensyn og huller <span class="badge ' + (items.length || nd ? 'bad' : 'ok') + '">' + (items.length + nd ? (items.length + nd) + ' ting at se på' : 'alt ser fint ud') + '</span></summary>';
+    h += '<div class="cols"><div><h4>Timer der ikke går op (' + nd + ')</h4>' + (nd ? '<ul class="lst">' + A.norm.map(x => '<li>' + esc(x.p.navn) + ': forskel <b class="' + (x.diff < 0 ? 'bad' : '') + '">' + fmtDiff(x.diff) + '</b></li>').join('') + '</ul>' : '<p class="muted">Alle ramte deres norm.</p>')
+        + '</div><div><h4>Bemanding og ønsker (' + items.length + ')</h4>' + (items.length ? '<ul class="lst">' + items.slice(0, 60).join('') + (items.length > 60 ? '<li class="muted">… og ' + (items.length - 60) + ' flere</li>' : '') + '</ul>' : '<p class="muted">Ingen huller eller brudte hensyn.</p>') + '</div></div></details>';
+    /* vagttjek */
+    h += '<details class="panel" data-k="tjek"' + open('tjek') + '><summary>Vagttjek – samme vagter hver dag?</summary><div class="cols">' + tjekTabel(afd, 0, 4, 'Mandag–torsdag', fk) + tjekTabel(afd, 4, 8, 'Fredag 1–4', fk) + '</div></details>';
+    /* dækning */
+    h += '<details class="panel" data-k="daek"' + open('daek') + '><summary>Dækning pr. stue (antal til stede pr. halve time)</summary><div class="cov">';
+    const stuer = ['', ...a.stuer.filter(s => S.personer.some(p => p.afd === afd && p.stue === s))];
+    for (const s of stuer) h += dækTabel(afd, s);
+    h += '</div></details>';
+    /* retfærdighed */
+    h += '<details class="panel" data-k="fair"' + open('fair') + '><summary>Retfærdighed – tidlige og sene vagter pr. person</summary><table class="mini"><thead><tr><th>Navn</th><th>Stue</th><th>Vagter</th><th>Tidlige (start før 7.00)</th><th>Sene (slut 16.30 el. senere)</th></tr></thead><tbody>';
+    for (const g of sorterPersoner(S, afd)) for (const p of g.personer) {
+        const sh = [...Array(8).keys()].filter(d => p.start[d] != null); if (!sh.length) continue;
+        h += '<tr><td>' + esc(p.navn) + '</td><td>' + esc(p.stue) + '</td><td>' + sh.length + '</td><td>' + sh.filter(d => p.start[d] < 420).length + '</td><td>' + sh.filter(d => p.slut[d] >= 990).length + '</td></tr>';
+    }
+    h += '</tbody></table><p class="muted">Optalt over de otte kolonner (mandag–torsdag gentages hver uge).</p></details>';
+    return h;
+}
+function tjekTabel(afd, d1, d2, titel, fk) {
+    const vs = new Map();
+    for (const p of S.personer) if (p.afd === afd) for (let d = d1; d < d2; d++) if (p.start[d] != null) {
+        const k = p.start[d] * 10000 + p.slut[d]; if (!vs.has(k)) vs.set(k, Array(d2 - d1).fill(0)); vs.get(k)[d - d1]++;
+    }
+    const keys = [...vs.keys()].sort((a, b) => a - b);
+    const ens = keys.every(k => new Set(vs.get(k)).size === 1);
+    let h = '<div><h4>' + titel + '</h4><div class="' + (ens ? 'good' : 'bad') + ' b">' + (ens ? '✔ Samme vagter alle dage' : '✘ Ikke ens – afvigelser er markeret') + '</div><table class="mini"><thead><tr><th>Vagt</th>' + DAG_KORT.slice(d1, d2).map(x => '<th>' + x + '</th>').join('') + '<th>Timer</th></tr></thead><tbody>';
+    for (const k of keys) {
+        const c = vs.get(k), ok = new Set(c).size === 1, s = Math.floor(k / 10000), e = k % 10000;
+        h += '<tr class="' + (ok ? '' : 'uens') + '"><td style="background:' + fk[k] + '">' + fmtVagt(s, e) + '</td>' + c.map(x => '<td class="ctr">' + x + '</td>').join('') + '<td class="ctr">' + fmtDiff(e - s) + '</td></tr>';
+    }
+    return h + '</tbody></table></div>';
+}
+function dækTabel(afd, stue) {
+    const rows = coverageMatrix(S, afd, stue, baseItems());
+    let h = '<div><h4>' + (stue ? esc(stue) : 'Hele afdelingen ' + esc(afd)) + '</h4><table class="mini heat"><thead><tr><th>Tid</th>' + DAG_KORT.map(x => '<th>' + x + '</th>').join('') + '</tr></thead><tbody>';
+    for (const r of rows) h += '<tr><td>' + fmtT(r.m) + '</td>' + r.counts.map((c, i) => '<td class="ctr ' + (r.krav[i] > 0 && c < r.krav[i] ? 'low' : '') + '">' + c + '</td>').join('') + '</tr>';
+    return h + '</tbody></table></div>';
+}
+
+/* ---------- cellerediteringer ---------- */
+function onCell(inp) {
+    const p = S.personer.find(x => x.id === inp.dataset.p), d = +inp.dataset.d;
+    const r = parseVagt(inp.value);
+    if (r.err) { toast(p.navn + ' · ' + DAGE[d] + ': ' + r.err, true); inp.value = p.start[d] != null ? fmtVagt(p.start[d], p.slut[d]) : ''; return; }
+    snapshot();
+    if (r.empty) { p.start[d] = null; p.slut[d] = null; } else { p.start[d] = r.s; p.slut[d] = r.e; }
+    if (p.forslag) p.forslag[d] = false;
+    commit(); inp.value = r.empty ? '' : fmtVagt(r.s, r.e); updateGrid();
+}
+function gridKey(e) {
+    const inp = e.target; if (!inp.classList || !inp.classList.contains('cell')) return;
+    const keyMove = { Enter: 1, ArrowDown: 1, ArrowUp: -1 }[e.key]; if (!keyMove) return;
+    e.preventDefault(); inp.blur();
+    const col = $$('#grid input.cell[data-d="' + inp.dataset.d + '"]'); const i = col.indexOf(inp);
+    const nx = col[i + (e.key === 'Enter' && e.shiftKey ? -1 : keyMove)]; if (nx) { nx.focus(); nx.select(); }
+}
+
+/* ---------- autogenerering ---------- */
+function runAuto(mode) {
+    const afd = UI.afd;
+    const kandidater = S.personer.filter(p => p.afd === afd && p.auto !== false && p.timer > 0);
+    let beskr;
+    if (mode === 'rest') {
+        beskr = '<p>Programmet <b>udfylder tomme felter</b> (og tidligere forslag) for de personer i ' + esc(afd) + ', der har <b>Auto</b> slået til (' + kandidater.length + ' personer). Det du selv har skrevet, bliver ikke ændret. Det tager nogle sekunder.</p>'
+            + '<p class="muted">Programmet tager hensyn til normtimer, mindste bemanding og personhensyn (fanen Hensyn). Resultatet er et <b>forslag</b>: du kan godkende eller rette det bagefter, og Fortryd virker.</p>';
+    } else {
+        beskr = '<p>Programmet justerer <b>fredagene</b> for personer med mandag–torsdag udfyldt, så de rammer normen. Mandag–torsdag røres ikke. Ændrede fredage markeres som forslag.</p>';
+    }
+    modal('<h3>' + (mode === 'rest' ? 'Udfyld resten' : 'Ret fredage til norm') + '</h3>' + beskr + '<div class="btns"><button class="btn pri" data-act="auto-go" data-mode="' + mode + '">Kør</button><button class="btn" data-act="close">Annullér</button></div>');
+}
+function goAuto(mode) {
+    modal('<h3>Arbejder …</h3><p>Programmet søger efter en god plan. Vent et øjeblik.</p>');
+    setTimeout(() => {
+        snapshot();
+        const t0 = performance.now();
+        const r = solve(S, { mode, afds: [UI.afd] });
+        commit();
+        if (r.none) { undoStack.pop(); render(); modal('<h3>Intet at udfylde</h3><p>Der var ingen tomme felter for personer med Auto slået til' + (mode === 'fredage' ? ', eller alle ramte allerede normen' : '') + '. Slå Auto til under <i>Personer og opsætning</i>, hvis nogen skal have vagter foreslået.</p><div class="btns"><button class="btn" data-act="close">Luk</button></div>'); return; }
+        logg((mode === 'rest' ? 'Udfyld resten' : 'Ret fredage til norm') + ' (' + UI.afd + '): ' + r.changed + ' felter ændret');
+        commit(); render();
+        const A = analyse(S, UI.afd);
+        const fri = S.personer.filter(p => (r.free || []).includes(p.id)).filter(p => { const t = personTotals(p); return t.norm > 0 && t.diff !== 0; });
+        modal('<h3>Færdig – ' + r.changed + ' felter foreslået</h3><p class="muted">Tog ' + Math.round(performance.now() - t0) / 1000 + ' sek. Forslagene står i kursiv med stiplet kant i grundplanen.</p>'
+            + '<ul class="lst"><li class="' + (fri.length ? 'warn' : 'good') + '">' + (fri.length ? '▲ ' + fri.length + ' person(er) har stadig forskel på timerne: ' + fri.map(p => esc(p.navn) + ' ' + fmtDiff(personTotals(p).diff)).join(', ') : '✔ Alle ramte deres norm') + '</li>'
+            + '<li class="' + (A.dæk.length ? 'bad' : 'good') + '">' + (A.dæk.length ? '✘ ' + A.dæk.length + ' huller i bemandingen (se panelet Hensyn og huller)' : '✔ Ingen huller i bemandingen') + '</li>'
+            + '<li class="' + (A.bløde.length + A.hårde.length ? 'warn' : 'good') + '">' + (A.bløde.length + A.hårde.length ? '▲ ' + (A.bløde.length + A.hårde.length) + ' brudte hensyn' : '✔ Alle personhensyn overholdt') + '</li></ul>'
+            + '<p class="muted">Er du ikke tilfreds, så tryk <b>Fortryd</b> øverst og prøv igen – hver kørsel kan give et lidt anderledes forslag.</p><div class="btns"><button class="btn pri" data-act="close">OK</button><button class="btn" data-act="auto-go" data-mode="' + mode + '">Prøv igen</button></div>');
+    }, 50);
+}
+
+/* ================= UGEPLAN ================= */
+function viewUge() {
+    const afd = UI.afd, a = afdObj(afd);
+    if (!UI.week) UI.week = mondayOf(todayISO());
+    const mon = UI.week, rot = rotWeek(S, mon);
+    const fk = farveKort(afd);
+    let h = '<div class="toolbar">' + afdTabs() + '<span class="sp"></span><button class="btn" data-act="wk" data-n="-1">‹ Forrige uge</button>'
+        + '<input type="date" class="dateinp" id="weekPick" data-chg="weekpick" value="' + mon + '"><button class="btn" data-act="wk" data-n="1">Næste uge ›</button><button class="btn" data-act="wk" data-n="0">I dag</button></div>';
+    h += '<div class="legend">Uge ' + fmtDK(mon) + '–' + fmtDK(addDays(mon, 4)) + ' · plan-uge <b>' + (rot + 1) + ' af 4</b> (fredag = <b>Fredag ' + (rot + 1) + '</b>). Klik på en celle for at registrere fravær, ændre vagten eller finde afløser. Grundplanen ændres ikke.</div>';
+    const hv = [];
+    h += '<div class="gridwrap"><table class="grid week"><thead><tr><th class="c1">Navn</th><th class="c2">Timer</th>';
+    for (let k = 0; k < 5; k++) { const iso = addDays(mon, k); h += '<th class="day">' + UGEDAGE[k] + ' <span class="muted">' + fmtDK(iso) + '</span></th>'; }
+    h += '<th class="num sepl">Uge</th><th class="num">Norm/uge</th></tr></thead><tbody>';
+    for (const g of sorterPersoner(S, afd)) {
+        h += '<tr class="stue"><td class="c1" colspan="2">' + esc(g.stue) + '</td><td colspan="7"></td></tr>';
+        for (const p of g.personer) {
+            h += '<tr><td class="c1 nm">' + esc(p.navn) + '</td><td class="c2 tm">' + (p.timer ? String(p.timer).replace('.', ',') : '') + '</td>';
+            for (let k = 0; k < 5; k++) {
+                const iso = addDays(mon, k), i = effInfo(S, p, iso);
+                let txt = '', st = '', c = 'wc';
+                if (i.abs) { txt = '<b>' + esc(i.abs.type) + '</b>' + (i.need ? '<br><s>' + fmtVagt(i.need[0], i.need[1]) + '</s>' : ''); c += ' abs'; }
+                else if (i.shift) {
+                    txt = fmtVagt(i.shift[0], i.shift[1]); st = 'background:' + (fk[i.shift[0] * 10000 + i.shift[1]] || '#eee'); if (i.over) c += ' ovr';
+                    const v = ruleViolationsDate(S, p, iso, i.di, i.shift[0], i.shift[1]);
+                    if (v.hard.length) { st += ';box-shadow:inset 0 0 0 2px #dc2626'; hv.push({ p, iso, h: v.hard[0], hard: true }); }
+                    else if (v.soft.length) { st += ';box-shadow:inset 0 0 0 2px #f59e0b'; hv.push({ p, iso, h: v.soft[0], hard: false }); }
+                }
+                else { txt = '<span class="muted">' + (i.over ? 'fri (ændret)' : '·') + '</span>'; if (i.over) c += ' ovr'; }
+                h += '<td class="' + c + '" style="' + st + '" data-act="cell" data-p="' + p.id + '" data-iso="' + iso + '">' + txt + (i.over && i.shift ? ' <span class="pen">✎</span>' : '') + '</td>';
+            }
+            const wk = weekMinutes(S, p, mon), nm = Math.round((p.timer || 0) * 60);
+            h += '<td class="num sepl ' + (nm && wk > nm ? 'bad' : nm && wk < nm ? 'good' : '') + '">' + (wk ? fmtDiff(wk) : '') + '</td><td class="num">' + (nm ? fmtDiff(nm) : '') + '</td></tr>';
+        }
+    }
+    h += '</tbody></table></div>';
+    /* huller + afløser */
+    const issues = coverageIssues(S, afd, weekItems(S, mon));
+    const abs = [];
+    for (const p of S.personer) if (p.afd === afd) for (let k = 0; k < 5; k++) { const iso = addDays(mon, k), i = effInfo(S, p, iso); if (i.abs && i.need) abs.push({ p, iso, i }); }
+    h += '<div class="panel"><h4>Hensyn der ikke overholdes denne uge (' + hv.length + ')</h4>' + (hv.length ? '<ul class="lst">' + hv.map(x => '<li class="' + (x.hard ? 'bad' : 'warn') + '">' + (x.hard ? '✘' : '▲') + ' ' + esc(x.p.navn) + ' · ' + UGEDAGE[weekdayIdx(x.iso)] + ' ' + fmtDK(x.iso) + ': ' + esc(hensynKort(S, x.h)) + '</li>').join('') + '</ul>' : '<p class="muted">Alle hensyn overholdes ✔</p>') + '</div>';
+    h += '<div class="cols"><div class="panel"><h4>Huller i bemandingen denne uge (' + issues.length + ')</h4>' + (issues.length ? '<ul class="lst">' + issues.map(x => '<li class="' + (x.rule.hard === 'skal' ? 'bad' : 'warn') + '">' + esc(issueTekst(x)) + '</li>').join('') + '</ul>' : '<p class="muted">Ingen huller ✔</p>') + '</div>'
+        + '<div class="panel"><h4>Fraværende vagter der skal dækkes (' + abs.length + ')</h4>' + (abs.length ? '<ul class="lst">' + abs.map(x => '<li>' + esc(x.p.navn) + ' · ' + UGEDAGE[weekdayIdx(x.iso)] + ' ' + fmtDK(x.iso) + ' · ' + fmtVagt(x.i.need[0], x.i.need[1]) + ' (' + esc(x.i.abs.type) + ') <button class="btn sm" data-act="afl" data-p="' + x.p.id + '" data-iso="' + x.iso + '">Find afløser</button></li>').join('') + '</ul>' : '<p class="muted">Ingen fravær denne uge.</p>') + '</div></div>';
+    /* fravær */
+    h += '<div class="panel"><h4>Registrér fravær</h4><div class="form"><select id="fvP">' + S.personer.map(p => '<option value="' + p.id + '">' + esc(p.navn) + ' (' + esc(p.afd) + ')</option>').join('') + '</select>'
+        + '<select id="fvT">' + FRAVAER_TYPER.map(t => '<option>' + t + '</option>').join('') + '</select><label>fra <input type="date" id="fvF" value="' + (todayISO() > mon ? todayISO() : mon) + '"></label><label>til <input type="date" id="fvTil" value="' + (todayISO() > mon ? todayISO() : mon) + '"></label>'
+        + '<button class="btn pri" data-act="fv-add">Tilføj fravær</button></div>';
+    const fl = [...S.fravaer].sort((x, y) => x.fra < y.fra ? 1 : -1).slice(0, 40);
+    h += '<table class="mini"><thead><tr><th>Person</th><th>Type</th><th>Fra</th><th>Til</th><th></th></tr></thead><tbody>' + (fl.length ? fl.map(f => { const p = S.personer.find(x => x.id === f.personId); return '<tr><td>' + esc(p ? p.navn : '?') + '</td><td>' + esc(f.type) + '</td><td>' + fmtDK(f.fra) + '</td><td>' + fmtDK(f.til) + '</td><td><button class="btn sm" data-act="fv-del" data-id="' + f.id + '">Slet</button></td></tr>'; }).join('') : '<tr><td colspan="5" class="muted">Intet fravær registreret.</td></tr>') + '</tbody></table></div>';
+    h += '<details class="panel"><summary>Ændringslog (' + S.log.length + ')</summary><ul class="lst">' + S.log.slice(0, 40).map(l => '<li><span class="muted">' + esc(l.t) + '</span> ' + esc(l.tekst) + '</li>').join('') + '</ul></details>';
+    return h;
+}
+function cellDialog(pid, iso) {
+    const p = S.personer.find(x => x.id === pid), i = effInfo(S, p, iso), di = dagIdxFor(S, iso);
+    const shiftTxt = i.need ? fmtVagt(i.need[0], i.need[1]) : '';
+    let h = '<h3>' + esc(p.navn) + ' · ' + UGEDAGE[weekdayIdx(iso)] + ' ' + fmtDK(iso) + '</h3><p class="muted">Grundplan: ' + (i.base ? fmtVagt(i.base[0], i.base[1]) : 'fri') + (i.over ? ' · ændret denne dag' : '') + (i.abs ? ' · ' + esc(i.abs.type) : '') + '</p>';
+    if (i.abs) h += '<div class="btns"><button class="btn pri" data-act="afl" data-p="' + pid + '" data-iso="' + iso + '">Find afløser</button><button class="btn" data-act="fv-del" data-id="' + i.abs.id + '" data-close="1">Slet fraværet</button></div>';
+    else h += '<h4>Registrér fravær</h4><div class="form"><select id="cdT">' + FRAVAER_TYPER.map(t => '<option>' + t + '</option>').join('') + '</select><label>til <input type="date" id="cdTil" value="' + iso + '"></label><button class="btn pri" data-act="cd-fv" data-p="' + pid + '" data-iso="' + iso + '">Registrér</button></div>';
+    h += '<h4>Ændr vagt denne dag</h4><div class="form"><input id="cdV" value="' + shiftTxt + '" placeholder="fx 7.30-15.15" style="width:9em"><button class="btn" data-act="cd-set" data-p="' + pid + '" data-iso="' + iso + '">Sæt vagt</button><button class="btn" data-act="cd-fri" data-p="' + pid + '" data-iso="' + iso + '">Fri denne dag</button>'
+        + (i.over ? '<button class="btn" data-act="cd-reset" data-p="' + pid + '" data-iso="' + iso + '">Nulstil til grundplan</button>' : '') + '</div><div class="btns"><button class="btn" data-act="close">Luk</button></div>';
+    modal(h);
+}
+function aflDialog(pid, iso) {
+    const p = S.personer.find(x => x.id === pid), r = findAfloeser(S, p, iso);
+    if (!r.need) { toast('Ingen vagt at dække den dag', true); return; }
+    let h = '<h3>Find afløser</h3><p>Dæk <b>' + esc(p.navn) + '</b> · ' + UGEDAGE[weekdayIdx(iso)] + ' ' + fmtDK(iso) + ' · <b>' + fmtVagt(r.need[0], r.need[1]) + '</b> (' + esc(p.stue) + ')</p>';
+    h += '<p class="muted">Kun personer i ' + esc(p.afd) + ' med Auto slået til, der er fri den dag, ikke er fraværende, ikke bryder et «skal»-hensyn og har 11 timers hvile. Bedste forslag står øverst.</p>';
+    if (!r.list.length) h += '<p class="bad">Ingen mulige afløsere fundet. Prøv at ændre en vagt manuelt, eller ret et hensyn.</p>';
+    else h += '<table class="mini"><thead><tr><th>Person</th><th>Hvorfor</th><th></th></tr></thead><tbody>' + r.list.slice(0, 12).map((c, k) => '<tr><td><b>' + esc(c.p.navn) + '</b></td><td>' + c.why.map(esc).join(' · ') + '</td><td><button class="btn ' + (k === 0 ? 'pri' : '') + ' sm" data-act="afl-brug" data-p="' + pid + '" data-q="' + c.p.id + '" data-iso="' + iso + '">Brug</button></td></tr>').join('') + '</tbody></table>';
+    h += '<div class="btns"><button class="btn" data-act="close">Luk</button></div>';
+    modal(h, 'wide');
+}
+
+/* ================= HENSYN ================= */
+function viewHensyn() {
+    const afd = UI.hAfd || S.afdelinger[0].id;
+    let h = '<div class="intro"><b>Hensyn</b> er reglerne programmet bruger, når det udfylder eller tjekker planen. «<b>Skal</b>» bliver aldrig brudt af generatoren; «<b>gerne</b>» forsøges overholdt, men kan brydes hvis der ikke er andet valg. Brudte hensyn vises altid i rapporten.</div>';
+    const I = indstFor(S), UD = ['Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag'];
+    h += '<div class="panel"><h4>Åbningstid pr. ugedag</h4><p class="muted">Bruges når planen udfyldes (ingen vagter uden for tidsrummet) og til at markere vagter uden for åbningstid.</p><table class="mini"><thead><tr><th></th>' + UD.map(x => '<th>' + x + '</th>').join('') + '</tr></thead><tbody>'
+        + '<tr><td><b>Åbner</b></td>' + UD.map((x, i) => '<td><input data-chg="indst" id="iA' + i + '" value="' + fmtT(I.aabnerUge[i]) + '" style="width:5em"></td>').join('') + '</tr>'
+        + '<tr><td><b>Lukker</b></td>' + UD.map((x, i) => '<td><input data-chg="indst" id="iL' + i + '" value="' + fmtT(I.lukkerUge[i]) + '" style="width:5em"></td>').join('') + '</tr></tbody></table>'
+        + '<p class="muted">Startværdier: 6.20–17.00 mandag–torsdag og 6.20–16.00 fredag (ud fra de vagter, der står i planen nu). Ret til jeres faktiske tider.</p></div>';
+    /* personhensyn */
+    const dageBox = (chk) => ['Mandag', 'Tirsdag', 'Onsdag', 'Torsdag'].map((n, i) => '<label><input type="checkbox" class="hpd" value="' + i + '" ' + (chk ? 'checked' : '') + '> ' + n + '</label>').join(' ') + ' <label><input type="checkbox" class="hpd" value="fre" ' + (chk ? 'checked' : '') + '> Fredage</label>';
+    h += '<div class="panel"><h4>Hensyn til personer</h4><div class="form"><select id="hpP">' + S.personer.map(p => '<option value="' + p.id + '">' + esc(p.navn) + ' (' + esc(p.afd) + ')</option>').join('') + '</select>'
+        + '<select id="hpT" data-chg="hpT"><option value="ikke_foer">kan ikke starte før …</option><option value="ikke_efter">kan ikke arbejde efter …</option><option value="fridag">skal have fri</option></select>'
+        + '<span id="hpV"><input id="hpTid" value="8.00" style="width:5em"></span><select id="hpH"><option value="skal">Skal</option><option value="gerne">Gerne</option></select></div>'
+        + '<div class="form"><b>Dage:</b><span id="hpD">' + dageBox(true) + '</span></div>'
+        + '<div class="form"><label>Kun i en periode (valgfrit) fra <input type="date" id="hpFra"></label><label>til <input type="date" id="hpTil"></label><span class="muted">Tomt = gælder altid i grundplanen. Med datoer gælder det kun ugeplanen den periode.</span></div>'
+        + '<div class="form"><label>Note <input id="hpN" placeholder="Valgfri – skriv kun hensynet, ikke årsagen" style="width:24em"></label><button class="btn pri" data-act="hp-add">Tilføj</button></div>';
+    h += '<table class="mini"><thead><tr><th>Hensyn</th><th>Type</th><th></th></tr></thead><tbody>' + (S.hensyn.person.length ? S.hensyn.person.map(x => '<tr><td>' + esc(hensynTekst(S, x)) + '</td><td>' + (x.hard === 'skal' ? '<b>Skal</b>' : 'Gerne') + '</td><td><button class="btn sm" data-act="hp-del" data-id="' + x.id + '">Slet</button></td></tr>').join('') : '<tr><td colspan="3" class="muted">Ingen personhensyn endnu. Eksempler: «kan ikke starte før 8.00 om tirsdagen», «fri 12/11».</td></tr>') + '</tbody></table></div>';
+    /* bemanding */
+    const a = afdObj(UI.hAfd || afd);
+    h += '<div class="panel"><h4>Mindste bemanding</h4><p class="muted">Red markerer huller i dækningstabellerne, og generatoren forsøger at undgå dem. Lad «Stue» stå på «Hele afdelingen» for fx åbning og lukning, hvor børnene er samlet.</p>'
+        + '<div class="form"><select id="hbA" data-chg="hbA">' + S.afdelinger.map(x => '<option ' + (x.id === (UI.hAfd || afd) ? 'selected' : '') + '>' + x.id + '</option>').join('') + '</select>'
+        + '<select id="hbS"><option value="">Hele afdelingen</option>' + a.stuer.map(s => '<option>' + esc(s) + '</option>').join('') + '</select>'
+        + '<label>fra <input id="hbF" value="8.30" style="width:5em"></label><label>til <input id="hbT" value="14.30" style="width:5em"></label><label>mindst <input id="hbM" type="number" min="1" value="2" style="width:4em"></label>'
+        + '<select id="hbK"><option value="">alle</option><option>Pædagog</option></select>'
+        + '<select id="hbD"><option value="alle">alle dage</option><option value="mt">man–tors</option><option value="fre">fredage</option></select>'
+        + '<select id="hbH"><option value="skal">Skal</option><option value="gerne">Gerne</option></select><button class="btn pri" data-act="hb-add">Tilføj</button></div>';
+    h += '<table class="mini"><thead><tr><th>Afd.</th><th>Regel</th><th>Type</th><th></th></tr></thead><tbody>' + S.hensyn.bemanding.map(r => '<tr><td>' + esc(r.afd) + '</td><td>' + esc(bemandingTekst(r)) + (r.eksempel ? ' <span class="ex">eksempel</span>' : '') + '</td><td>' + (r.hard === 'skal' ? '<b>Skal</b>' : 'Gerne') + '</td><td><button class="btn sm" data-act="hb-del" data-id="' + r.id + '">Slet</button></td></tr>').join('') + '</tbody></table>';
+    h += '<p class="muted"><span class="ex">eksempel</span> = startværdier jeg har lagt ind for at vise, hvordan det virker. Ret eller slet dem, så de passer til jeres regler.</p></div>';
+    h += '<div class="panel"><h4>Andre hensyn (fri tekst – læses ikke af programmet)</h4><textarea id="hTekst" data-chg="htekst" rows="5" placeholder="Fx: Person A kan ikke starte f\u00f8r 8.00 om tirsdagen \u2026">' + esc(S.hensynTekst) + '</textarea></div>';
+    return h;
+}
+
+/* ================= PERSONER OG OPSÆTNING ================= */
+function viewPersoner() {
+    let h = '<div class="intro">Her rettes personer, stuer og tekster. <b>Auto</b> = må programmet foreslå vagter og afløsning til personen (slå fra for personer, der ikke skal have vagter foreslået, fx køkken).</div>';
+    h += '<div class="panel"><h4>Uge 1 starter</h4><div class="form"><label>Mandag i plan-uge 1 <input type="date" id="startD" data-chg="start" value="' + S.startDato + '"></label><span class="muted">Bruges af ugeplanen til at finde ud af, hvilken fredag der gælder.</span></div></div>';
+    for (const a of S.afdelinger) {
+        h += '<div class="panel"><h4>' + esc(a.navn) + '</h4><table class="mini"><thead><tr><th>Navn</th><th>Stue</th><th>Timer/uge</th><th>Kvalifikation</th><th>Auto</th><th>Note</th><th></th></tr></thead><tbody>';
+        S.personer.filter(p => p.afd === a.id).forEach(p => {
+            h += '<tr><td><input data-chg="pf" data-f="navn" data-p="' + p.id + '" value="' + esc(p.navn) + '"></td><td><select data-chg="pf" data-f="stue" data-p="' + p.id + '">' + a.stuer.map(s => '<option ' + (s === p.stue ? 'selected' : '') + '>' + esc(s) + '</option>').join('') + (a.stuer.includes(p.stue) ? '' : '<option selected>' + esc(p.stue) + '</option>') + '</select></td>'
+                + '<td><input data-chg="pf" data-f="timer" data-p="' + p.id + '" value="' + String(p.timer).replace('.', ',') + '" style="width:4.5em"></td><td><select data-chg="pf" data-f="kval" data-p="' + p.id + '">' + KVAL.map(k => '<option value="' + k + '" ' + (k === p.kval ? 'selected' : '') + '>' + (k || '–') + '</option>').join('') + '</select></td>'
+                + '<td class="ctr"><input type="checkbox" data-chg="pf" data-f="auto" data-p="' + p.id + '" ' + (p.auto !== false ? 'checked' : '') + '></td><td><input data-chg="pf" data-f="note" data-p="' + p.id + '" value="' + esc(p.note) + '" style="width:7em"></td>'
+                + '<td><button class="btn sm" data-act="p-up" data-p="' + p.id + '" title="Flyt op">↑</button><button class="btn sm" data-act="p-dn" data-p="' + p.id + '" title="Flyt ned">↓</button><button class="btn sm" data-act="p-del" data-p="' + p.id + '">Slet</button></td></tr>';
+        });
+        h += '</tbody></table><div class="form"><b>Ny medarbejder:</b><input id="np-n-' + a.id + '" placeholder="Navn"><select id="np-s-' + a.id + '">' + a.stuer.map(s => '<option>' + esc(s) + '</option>').join('') + '</select><input id="np-t-' + a.id + '" placeholder="Timer" style="width:4.5em"><button class="btn pri" data-act="p-add" data-a="' + a.id + '">Tilføj</button></div>';
+        h += '<h4>Stuer i ' + esc(a.navn) + '</h4><div class="form">' + a.stuer.map((s, i) => '<span class="chip"><input data-chg="stue" data-a="' + a.id + '" data-i="' + i + '" value="' + esc(s) + '"><button class="btn sm" data-act="stue-del" data-a="' + a.id + '" data-i="' + i + '">×</button></span>').join('') + '<input id="ns-' + a.id + '" placeholder="Ny stue"><button class="btn sm" data-act="stue-add" data-a="' + a.id + '">Tilføj stue</button></div>';
+        h += '<h4>Tekst over hver dag</h4><div class="form">' + DAGE.map((d, i) => '<label>' + d + ' <input data-chg="dtekst" data-a="' + a.id + '" data-i="' + i + '" value="' + esc(a.dagtekster[i] || '') + '" style="width:11em"></label>').join('') + '</div></div>';
+    }
+    return h;
+}
+
+/* ================= BACKUP ================= */
+function viewBackup() {
+    let auto;
+    if (FS.supported) {
+        auto = '<div class="panel"><h4>Automatisk gem til fil (anbefalet)</h4>'
+            + '<p>Vælg <b>én gang</b> en fil – fx i en mappe på OneDrive eller et netværksdrev. Derefter gemmer programmet automatisk efter hver ændring, så du ikke skal huske noget. Går browserens data tabt, kan du åbne filen igen via «Åbn backup».</p>'
+            + (FS.handle ? '<p class="' + (FS.ok ? 'good' : 'warn') + '"><b>' + (FS.ok ? '✔ Slået til: ' + esc(FS.handle.name) : '⚠ Filen «' + esc(FS.handle.name) + '» er valgt, men browseren skal have lov igen') + '</b></p>' : '')
+            + '<div class="form">' + (FS.handle && !FS.ok ? '<button class="btn pri" data-act="hint" data-go="reconnect">Genopret automatisk gem</button>' : '')
+            + '<button class="btn ' + (FS.handle ? '' : 'pri') + '" data-act="fs-pick">' + (FS.handle ? 'Vælg en anden fil' : 'Vælg fil til automatisk gem') + '</button>'
+            + (FS.handle && FS.ok ? '<button class="btn" data-act="fs-write">Gem til filen nu</button>' : '') + (FS.handle ? '<button class="btn" data-act="fs-stop">Slå fra</button>' : '') + '</div>'
+            + '<p class="muted">Hver gang du åbner programmet igen, skal du trykke «Genopret automatisk gem» i toppen én gang – det kræver browseren af sikkerhedshensyn. Hvis filen er ændret et andet sted (fx en anden computer), spørger programmet, før noget overskrives.</p></div>';
+    } else {
+        auto = '<div class="panel"><h4>Automatisk gem</h4><p class="warn">Denne browser kan ikke gemme automatisk til en fil. Brug Chrome eller Edge for det. Til da: tag en backup (nedenfor) med jævne mellemrum – øverst vises, hvor længe siden den sidste var.</p></div>';
+    }
+    let odp = '';
+    if (odAvailable()) {
+        const cfgId = !!CFG.clientId, stored = !!odStored();
+        odp = '<div class="panel"><h4>Automatisk gem i OneDrive</h4>'
+            + '<p>Programmet gemmer en datafil i en skjult app-mappe i <b>din egen OneDrive</b>, hver gang du retter noget, og henter den igen, n\u00e5r du \u00e5bner programmet. Det virker ogs\u00e5 p\u00e5 iPad. Microsoft kr\u00e6ver, at du logger ind igen cirka \u00e9n gang i d\u00f8gnet.</p>'
+            + (stored ? '<p class="' + (OD.ok && !OD.needLogin ? 'good' : 'warn') + '"><b>' + (OD.ok && !OD.needLogin ? '\u2714 Forbundet til OneDrive' : '\u26A0 Log ind igen') + '</b>' + (OD.err ? ' <span class="muted">(' + esc(OD.err) + ')</span>' : '') + '</p>' : '')
+            + (cfgId ? '' : '<div class="form"><label>Program-id (client id) fra Microsoft <input id="msId" data-chg="msid" value="' + esc(localStorage.getItem('vagtplan_msid') || '') + '" style="width:22em" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></label></div>')
+            + '<div class="form">' + (stored && OD.ok && !OD.needLogin ? '<button class="btn" data-act="od-write">Gem til OneDrive nu</button><button class="btn" data-act="od-logout">Log ud</button>' : '<button class="btn pri" data-act="od-login">Log ind p\u00e5 OneDrive</button>' + (stored ? '<button class="btn" data-act="od-logout">Fjern forbindelsen</button>' : '')) + '</div></div>';
+    }
+    return '<div class="intro"><b>Sådan gemmes dine data:</b> alt gemmes altid i denne browser på denne computer. Det er væk, hvis browserens data ryddes, eller filen åbnes fra en anden mappe eller computer – derfor er en fil-kopi vigtig.</div>' + odp + auto
+        + '<div class="panel"><h4>Manuel backup</h4><div class="form"><button class="btn" data-act="bk-save">Gem backup (fil)</button><button class="btn" data-act="bk-share">Del backup…</button><label class="btn">Åbn backup … <input type="file" id="bkFile" accept=".json" data-chg="bkfile" style="display:none"></label><button class="btn" data-act="bk-reset">Nulstil til startdata</button></div>'
+        + '<div class="form"><button class="btn" data-act="csv-all">Eksportér begge afdelinger til CSV (åbnes i Excel)</button></div></div>'
+        + '<div class="panel"><h4>Hurtig hjælp</h4><ul class="lst"><li><b>Grundplan:</b> 4-ugers rotation. Mandag–torsdag er den samme alle uger, fredag varierer. Total = 4 × (man–tors) + de fire fredage.</li>'
+        + '<li><b>Udfyld resten:</b> foreslår vagter i tomme felter ud fra norm, bemanding og hensyn. Det er et forslag – godkend eller ret.</li>'
+        + '<li><b>Ret fredage til norm:</b> justerer kun fredagene, så timerne går op.</li>'
+        + '<li><b>Ugeplan:</b> registrér fravær og find afløser uden at røre grundplanen. Afløseren sættes ind kun for den dag.</li>'
+        + '<li><b>Fortryd:</b> knappen øverst fortryder seneste ændring (op til 60 trin i denne session).</li>'
+        + '<li><b>Udskriv:</b> vælg «Gem som PDF» eller en printer; siden er sat op til A4 på tværs.</li></ul></div>';
+}
+
+/* ================= HÆNDELSER ================= */
+function act(a, t) {
+    const d = t.dataset;
+    switch (a) {
+        case 'tab': UI.tab = d.k; render(); break;
+        case 'od-login': odLogin(); break;
+        case 'od-logout': odLogout(); break;
+        case 'od-write': odWrite(true).then(() => toast(OD.err ? 'Fejl: ' + OD.err : 'Gemt til OneDrive')); break;
+        case 'bk-share': {
+            const f = new File([JSON.stringify(S)], 'vagtplan-backup-' + todayISO() + '.json', { type: 'application/json' });
+            if (navigator.canShare && navigator.canShare({ files: [f] })) { navigator.share({ files: [f], title: 'Vagtplan-backup' }).then(() => { S.meta.sidstBackup = new Date().toISOString(); commit(); updateHeader(); }).catch(() => { }); }
+            else { download(f.name, JSON.stringify(S)); S.meta.sidstBackup = new Date().toISOString(); commit(); updateHeader(); }
+            break;
+        }
+        case 'hint': if (t.dataset.go === 'odlogin') odLogin(); else if (t.dataset.go === 'reconnect') fsReconnect(); else { UI.tab = 'backup'; render(); } break;
+        case 'fs-pick': fsPick(); break;
+        case 'fs-stop': fsStop(); break;
+        case 'fs-write': fsWrite(true).then(() => toast(FS.err ? 'Fejl: ' + FS.err : 'Gemt til filen')); break;
+        case 'afd': UI.afd = d.k; render(); break;
+        case 'close': closeModal(); break;
+        case 'print': document.body.classList.add('print-grid'); window.print(); setTimeout(() => document.body.classList.remove('print-grid'), 1500); break;
+        case 'print-alt': window.print(); break;
+        case 'auto-rest': runAuto('rest'); break;
+        case 'auto-fre': runAuto('fredage'); break;
+        case 'auto-go': goAuto(d.mode); break;
+        case 'godkend': snapshot(); S.personer.filter(p => p.afd === UI.afd).forEach(p => p.forslag = Array(8).fill(false)); commit(); updateGrid(); toast('Forslag godkendt'); break;
+        case 'fjernforslag': {
+            snapshot(); let n = 0;
+            S.personer.filter(p => p.afd === UI.afd).forEach(p => { for (let k = 0; k < 8; k++) if (p.forslag && p.forslag[k]) { p.start[k] = null; p.slut[k] = null; p.forslag[k] = false; n++; } });
+            commit(); updateGrid(); toast(n + ' forslag fjernet'); break;
+        }
+        case 'csv': download('vagtplan-' + UI.afd + '.csv', '\ufeff' + csvEksport(S, UI.afd), 'text/csv'); break;
+        case 'csv-all': S.afdelinger.forEach(x => download('vagtplan-' + x.id + '.csv', '\ufeff' + csvEksport(S, x.id), 'text/csv')); break;
+        case 'wk': UI.week = d.n === '0' ? mondayOf(todayISO()) : addDays(UI.week, 7 * +d.n); render(); break;
+        case 'cell': cellDialog(d.p, d.iso); break;
+        case 'afl': aflDialog(d.p, d.iso); break;
+        case 'afl-brug': {
+            const q = S.personer.find(x => x.id === d.q), p = S.personer.find(x => x.id === d.p), r = findAfloeser(S, p, d.iso);
+            snapshot(); (S.overstyr[d.iso] = S.overstyr[d.iso] || {})[q.id] = { s: r.need[0], e: r.need[1] };
+            logg(q.navn + ' dækker ' + p.navn + ' ' + fmtDK(d.iso) + ' ' + fmtVagt(r.need[0], r.need[1])); commit(); closeModal(); render(); toast(q.navn + ' sat ind ' + fmtDK(d.iso)); break;
+        }
+        case 'cd-fv': {
+            const til = $('#cdTil').value || d.iso; snapshot(); S.fravaer.push({ id: nyId(S, 'f'), personId: d.p, fra: d.iso, til: til < d.iso ? d.iso : til, type: $('#cdT').value });
+            const p = S.personer.find(x => x.id === d.p); logg(p.navn + ': ' + $('#cdT').value + ' ' + fmtDK(d.iso) + (til !== d.iso ? '–' + fmtDK(til) : '')); commit(); render(); aflDialog(d.p, d.iso); break;
+        }
+        case 'cd-set': {
+            const r = parseVagt($('#cdV').value); if (r.err || r.empty) { toast(r.err || 'Skriv en vagt, fx 7.30-15.15', true); break; }
+            snapshot(); (S.overstyr[d.iso] = S.overstyr[d.iso] || {})[d.p] = { s: r.s, e: r.e };
+            logg(S.personer.find(x => x.id === d.p).navn + ' ' + fmtDK(d.iso) + ' ændret til ' + fmtVagt(r.s, r.e)); commit(); closeModal(); render(); break;
+        }
+        case 'cd-fri': snapshot(); (S.overstyr[d.iso] = S.overstyr[d.iso] || {})[d.p] = null; logg(S.personer.find(x => x.id === d.p).navn + ' ' + fmtDK(d.iso) + ' sat fri'); commit(); closeModal(); render(); break;
+        case 'cd-reset': snapshot(); if (S.overstyr[d.iso]) { delete S.overstyr[d.iso][d.p]; if (!Object.keys(S.overstyr[d.iso]).length) delete S.overstyr[d.iso]; } commit(); closeModal(); render(); break;
+        case 'fv-add': {
+            const f = $('#fvF').value, ti = $('#fvTil').value; if (!f || !ti) { toast('Vælg fra- og til-dato', true); break; }
+            snapshot(); S.fravaer.push({ id: nyId(S, 'f'), personId: $('#fvP').value, fra: f, til: ti < f ? f : ti, type: $('#fvT').value });
+            logg(S.personer.find(x => x.id === $('#fvP').value).navn + ': ' + $('#fvT').value + ' ' + fmtDK(f) + '–' + fmtDK(ti)); commit(); render(); break;
+        }
+        case 'fv-del': snapshot(); S.fravaer = S.fravaer.filter(x => x.id !== d.id); commit(); if (d.close) closeModal(); render(); break;
+        case 'hp-add': {
+            const typ = $('#hpT').value, x = { id: nyId(S, 'h'), personId: $('#hpP').value, type: typ, hard: $('#hpH').value };
+            x.dage = $$('#hpD input.hpd:checked').flatMap(c => c.value === 'fre' ? [4, 5, 6, 7] : [+c.value]);
+            if (!x.dage.length) { toast('Vælg mindst én dag', true); break; }
+            if (typ !== 'fridag') { const m = parseTid($('#hpTid').value); if (m == null) { toast('Ugyldig tid – skriv fx 8.00', true); break; } x.min = m; }
+            const fra = $('#hpFra').value, til = $('#hpTil').value;
+            if (fra) { x.fra = fra; x.til = til && til >= fra ? til : fra; }
+            else if (til) { toast('Skriv også en fra-dato', true); break; }
+            const nt = $('#hpN').value.trim(); if (nt) x.note = nt;
+            snapshot(); S.hensyn.person.push(x); commit(); render(); toast('Hensyn tilføjet'); break;
+        }
+        case 'hp-del': snapshot(); S.hensyn.person = S.hensyn.person.filter(x => x.id !== d.id); commit(); render(); break;
+        case 'hb-add': {
+            const fra = parseTid($('#hbF').value), til = parseTid($('#hbT').value), mn = +$('#hbM').value;
+            if (fra == null || til == null || til <= fra || !(mn >= 1)) { toast('Tjek tidspunkter og antal', true); break; }
+            const dk = $('#hbD').value; snapshot();
+            S.hensyn.bemanding.push({ id: nyId(S, 'b'), afd: $('#hbA').value, stue: $('#hbS').value, fra, til, min: mn, kval: $('#hbK').value, hard: $('#hbH').value, dage: dk === 'mt' ? [0, 1, 2, 3] : dk === 'fre' ? [4, 5, 6, 7] : [0, 1, 2, 3, 4, 5, 6, 7] });
+            commit(); render(); break;
+        }
+        case 'hb-del': snapshot(); S.hensyn.bemanding = S.hensyn.bemanding.filter(x => x.id !== d.id); commit(); render(); break;
+        case 'p-add': {
+            const n = $('#np-n-' + d.a).value.trim(), st = $('#np-s-' + d.a).value, ti = parseFloat($('#np-t-' + d.a).value.replace(',', '.'));
+            if (!n || !(ti > 0)) { toast('Skriv navn og timer pr. uge', true); break; }
+            snapshot(); S.personer.push({ id: nyId(S, 'p'), navn: n, afd: d.a, stue: st, timer: ti, note: '', kval: '', auto: true, start: Array(8).fill(null), slut: Array(8).fill(null), forslag: Array(8).fill(false) });
+            commit(); render(); toast(n + ' tilføjet – udfyld vagter i Grundplan'); break;
+        }
+        case 'p-del': {
+            const p = S.personer.find(x => x.id === d.p); if (!confirm('Fjern ' + p.navn + ' fra planen? Det kan fortrydes med Fortryd-knappen.')) break;
+            snapshot(); S.personer = S.personer.filter(x => x.id !== d.p); S.hensyn.person = S.hensyn.person.filter(x => x.personId !== d.p); S.fravaer = S.fravaer.filter(x => x.personId !== d.p); commit(); render(); break;
+        }
+        case 'p-up': case 'p-dn': {
+            const i = S.personer.findIndex(x => x.id === d.p), p = S.personer[i]; const dir = a === 'p-up' ? -1 : 1;
+            let j = i + dir; while (j >= 0 && j < S.personer.length && (S.personer[j].afd !== p.afd || S.personer[j].stue !== p.stue)) j += dir;
+            if (j < 0 || j >= S.personer.length) break; snapshot(); S.personer.splice(i, 1); S.personer.splice(j, 0, p); commit(); render(); break;
+        }
+        case 'stue-add': {
+            const n = $('#ns-' + d.a).value.trim(); if (!n) break; const a = afdObj(d.a); if (a.stuer.includes(n)) { toast('Stuen findes allerede', true); break; }
+            snapshot(); a.stuer.push(n); commit(); render(); break;
+        }
+        case 'stue-del': {
+            const a = afdObj(d.a), s = a.stuer[+d.i]; if (S.personer.some(p => p.afd === a.id && p.stue === s)) { toast('Flyt eller slet først personerne i ' + s, true); break; }
+            snapshot(); a.stuer.splice(+d.i, 1); S.hensyn.bemanding = S.hensyn.bemanding.filter(r => !(r.afd === a.id && r.stue === s)); commit(); render(); break;
+        }
+        case 'bk-save': download('vagtplan-backup-' + todayISO() + '.json', JSON.stringify(S)); S.meta.sidstBackup = new Date().toISOString(); commit(); render(); toast('Backup gemt som fil i din Overførsler-mappe'); break;
+        case 'bk-reset': if (confirm('Nulstil alt til startdata? Dine ændringer forsvinder (tag evt. backup først).')) { snapshot(); S = defaultState(); commit(); render(); } break;
+    }
+}
+function chg(k, t) {
+    const d = t.dataset;
+    switch (k) {
+        case 'cell': onCell(t); break;
+        case 'weekpick': if (t.value) { UI.week = mondayOf(t.value); render(); } break;
+        case 'start': if (t.value) { snapshot(); S.startDato = t.value; commit(); toast('Gemt'); } break;
+        case 'msid': localStorage.setItem('vagtplan_msid', t.value.trim()); toast('Program-id gemt'); break;
+        case 'htekst': S.hensynTekst = t.value; commit(); break;
+        case 'indst': {
+            const a = [], l = []; let bad = false;
+            for (let i = 0; i < 5; i++) { const x = parseTid($('#iA' + i).value), y = parseTid($('#iL' + i).value); if (x == null || y == null || y <= x) bad = true; a.push(x); l.push(y); }
+            if (bad) { toast('Ugyldig åbningstid – skriv fx 6.20 og 17.00, og lukketid efter åbningstid', true); render(); break; }
+            snapshot(); S.indst = { aabner: a, lukker: l }; commit(); toast('Åbningstider gemt'); break;
+        }
+        case 'hpT': {
+            const v = t.value; $('#hpV').innerHTML = v === 'fridag' ? '' : '<input id="hpTid" value="' + (v === 'ikke_foer' ? '8.00' : '15.00') + '" style="width:5em">';
+            $$('#hpD input.hpd').forEach(c => { c.checked = v !== 'fridag'; }); break;
+        }
+        case 'hbA': UI.hAfd = t.value; render(); break;
+        case 'pf': {
+            const p = S.personer.find(x => x.id === d.p), f = d.f; snapshot();
+            if (f === 'timer') { const v = parseFloat(String(t.value).replace(',', '.')); if (!(v >= 0)) { toast('Ugyldigt timetal', true); render(); return; } p.timer = v; }
+            else if (f === 'auto') p.auto = t.checked; else p[f] = t.value.trim ? t.value.trim() : t.value;
+            commit(); if (f === 'stue' || f === 'navn') render(); break;
+        }
+        case 'stue': {
+            const a = afdObj(d.a), old = a.stuer[+d.i], nw = t.value.trim(); if (!nw || (nw !== old && a.stuer.includes(nw))) { toast('Ugyldigt eller dobbelt stuenavn', true); render(); return; }
+            snapshot(); a.stuer[+d.i] = nw; S.personer.forEach(p => { if (p.afd === a.id && p.stue === old) p.stue = nw; }); S.hensyn.bemanding.forEach(r => { if (r.afd === a.id && r.stue === old) r.stue = nw; }); commit(); render(); break;
+        }
+        case 'dtekst': snapshot(); afdObj(d.a).dagtekster[+d.i] = t.value; commit(); break;
+        case 'bkfile': {
+            const f = t.files[0]; if (!f) return; const rd = new FileReader();
+            rd.onload = () => { try { const x = JSON.parse(rd.result); if (!x.personer || !x.afdelinger) throw 0; snapshot(); S = x; commit(); render(); toast('Backup indlæst'); } catch (e) { toast('Filen ligner ikke en vagtplan-backup', true); } };
+            rd.readAsText(f); break;
+        }
+    }
+}
+
+function init() {
+    load(); migrer();
+    const main = $('#main');
+    document.addEventListener('click', e => { const t = e.target.closest('[data-act]'); if (t) { act(t.dataset.act, t, e); } });
+    document.addEventListener('change', e => { const t = e.target; if (t.dataset && t.dataset.chg) chg(t.dataset.chg, t, e); });
+    document.addEventListener('keydown', e => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !(e.target.tagName === 'TEXTAREA')) { e.preventDefault(); undo(); return; }
+        if (e.key === 'Escape') closeModal();
+        gridKey(e);
+    });
+    $('#btnUndo').addEventListener('click', undo);
+    $('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
+    $('#details-toggle') && 0;
+    document.addEventListener('toggle', e => { const d = e.target; if (d.tagName === 'DETAILS' && d.dataset.k) UI.open[d.dataset.k] = d.open; }, true);
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { }
+    render();
+    fsInit();
+    odInit();
+    document.addEventListener('visibilitychange', () => { if (document.hidden && FS.handle && FS.ok) { clearTimeout(FS.timer); fsWrite(false); } });
+}
+document.addEventListener('DOMContentLoaded', init);
+</script>
+<script>if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) { navigator.serviceWorker.register('sw.js').catch(function(){}); }</script>
+</body></html>
