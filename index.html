@@ -184,6 +184,10 @@ function ansaetOf(p) {
     if (m) { const v = parseFloat(m[1].replace(',', '.')); if (v >= 5 && v <= 48) return v; }
     return +p.timer || 0;
 }
+/* ændret ansættelse i en periode (fx nedsat tid): p.tidsperioder = [{id, fra, til, ansaet}] */
+function ansaetPaa(p, iso) { for (const t of p.tidsperioder || []) if (t.fra <= iso && iso <= t.til) return +t.ansaet; return ansaetOf(p); }
+/* dato som Timer/uge i den nuværende grundplan gælder for (starter planen i fremtiden, bruges dens startdato) */
+function datoForTimer(S) { const nu = idag(); return S.gyldigFra && S.gyldigFra > nu ? S.gyldigFra : nu; }
 const HELLIG_NAVN = { '01-01': 'Nyt\u00e5rsdag', '12-25': '1. juledag', '12-26': '2. juledag' };
 function aarsInd(S) { return Object.assign({}, AARS_STD, S.aarsnorm || {}); }
 /* navn p\u00e5 lukket dag (helligdag eller lukkedag), ellers null */
@@ -743,7 +747,7 @@ function afbankNy(S, p, dage, fra, til) {
     for (let iso = fra; iso <= til; iso = addDays(iso, 1)) { if (weekdayIdx(iso) >= 5 || lukketNavn(S, iso)) continue; const e = effInfo(S, p, iso); if (e.abs && e.abs.type === 'Ferie') continue; D++; }
     const W2 = (D - dage) / 5;
     if (!(W2 > 0)) return { err: 'Der er for f\u00e5 arbejdsdage tilbage i perioden' };
-    const bMin = dage * (ansaetOf(p) / 5) * 60;     
+    const bMin = dage * (ansaetPaa(p, fra) / 5) * 60;     
     return { id: nyId(S, 'b'), personId: p.id, dage, fra, til, bMin, extraMin: bMin / W2, uger: W2 };
 }
 function afbankTaget(S, b) {
@@ -755,8 +759,8 @@ function afbankExtraMin(S, p, iso) {
     return (S.afbank || []).reduce((t, b) => t + (b.personId === p.id && b.fra <= iso && iso <= b.til ? b.extraMin : 0), 0);
 }
 /* Timer/uge ud fra ansættelse, opgaver og evt. afspadseringsdage der oparbejdes lige nu */
-function timerBeregnet(S, p, y) {
-    const o = opgOversigt(S, p, y), v = o.pr + afbankExtraMin(S, p, idag()) / 60;
+function timerBeregnet(S, p, y, iso) {
+    const o = opgOversigt(S, p, y, iso), v = o.pr + afbankExtraMin(S, p, idag()) / 60;
     return aarsInd(S).afrund === 'kvarter' ? Math.round(v * 4) / 4 : Math.round(v * 10000) / 10000;
 }
 
@@ -786,15 +790,17 @@ function aarsNorm(S, p, y) {
     const start = y + '-09-01', end = (y + 1) + '-08-31', nu = idag();
     const mIdx = iso => ((+iso.slice(5, 7)) + 3) % 12;               // sep = 0 ... aug = 11
     const hv = hverdageIPeriode(start, end);
-    const r = { ansaet: A, dagsnorm: dag, norm: o.metode === 'hverdage' ? dag * hv : Math.round(A * 60 * o.uger), vagt: 0, fravaer: 0, luk: 0, opg: 0, hidtil: 0, maaned: Array(12).fill(0), fraTyper: {}, lukDage: 0 };
+    let red = 0; if ((p.tidsperioder || []).length) for (let d2 = start; d2 <= end; d2 = addDays(d2, 1)) if (weekdayIdx(d2) < 5) red += (A - ansaetPaa(p, d2)) / 5 * 60;
+    const dagAt = iso => Math.round(ansaetPaa(p, iso) * 60 / 5);
+    const r = { ansaet: A, dagsnorm: dag, norm: (o.metode === 'hverdage' ? dag * hv : Math.round(A * 60 * o.uger)) - Math.round(red), vagt: 0, fravaer: 0, luk: 0, opg: 0, hidtil: 0, maaned: Array(12).fill(0), fraTyper: {}, lukDage: 0 };
     const add = (iso, m, bucket) => { r[bucket] += m; r.maaned[mIdx(iso)] += m; if (iso <= nu) r.hidtil += m; };
     for (let iso = start; iso <= end; iso = addDays(iso, 1)) {
         if (weekdayIdx(iso) >= 5) continue;
-        if (lukketNavn(S, iso)) { r.lukDage++; if (o.lukCredit) add(iso, dag, 'luk'); continue; }
+        if (lukketNavn(S, iso)) { r.lukDage++; if (o.lukCredit) add(iso, dagAt(iso), 'luk'); continue; }
         const e = effInfo(S, p, iso);
         if (e.abs) {
             const md = mode[e.abs.type] || 'vagt';
-            if (e.need && md !== 'nej') { const m = md === 'dagsnorm' ? dag : e.need[1] - e.need[0]; add(iso, m, 'fravaer'); r.fraTyper[e.abs.type] = (r.fraTyper[e.abs.type] || 0) + m; }
+            if (e.need && md !== 'nej') { const m = md === 'dagsnorm' ? dagAt(iso) : e.need[1] - e.need[0]; add(iso, m, 'fravaer'); r.fraTyper[e.abs.type] = (r.fraTyper[e.abs.type] || 0) + m; }
         } else if (e.shift) add(iso, e.shift[1] - e.shift[0], 'vagt');
     }
     const fd = opgFordeling(S, p, y);
@@ -803,8 +809,8 @@ function aarsNorm(S, p, y) {
     return r;
 }
 /* beregner "timer pr. uge" som arket Opgaveoversigt: ansættelse - helligdage - ferie - omsorgsdage - opgaver => timer med børn pr. arbejdsuge */
-function opgOversigt(S, p, y) {
-    const o = aarsInd(S), A = ansaetOf(p), dag = A / 5;
+function opgOversigt(S, p, y, iso0) {
+    const o = aarsInd(S), A0 = ansaetOf(p), A = ansaetPaa(p, iso0 || datoForTimer(S)), dag = A / 5;
     const start = y + '-09-01', end = (y + 1) + '-08-31';
     const hv = hverdageIPeriode(start, end);
     let lukDage = 0; for (let iso = start; iso <= end; iso = addDays(iso, 1)) if (weekdayIdx(iso) < 5 && lukketNavn(S, iso)) lukDage++;
@@ -830,10 +836,13 @@ function opgOversigt(S, p, y) {
         opg += t.frek === 'uge' ? h * arbUger * del : t.frek === '4uger' ? h / 4 * arbUger * del : t.frek === 'maaned' ? h * 12 * del : t.frek === 'aar' ? h : 0;
         opgListe.push({ navn: t.navn, frek: t.frek, timer: h, aar: opg - opg0 });
     }
+    let red = 0;                                                // nedsættelse af årsnormen pga. ændret ansættelse i perioder
+    if ((p.tidsperioder || []).length) for (let d2 = start; d2 <= end; d2 = addDays(d2, 1)) if (weekdayIdx(d2) < 5) red += (A0 - ansaetPaa(p, d2)) / 5;
+    const normAar = (perioden ? (A0 / 5) * hv : A0 * o.uger) - red;
     const medBoern = norm - ugeFradrag - opg - dag * nul;
     const pr0 = arbUger > 0 ? medBoern / arbUger : 0, korr = +p.timerKorr || 0, pr = pr0 + korr;
     const afr = o.afrund === 'kvarter' ? Math.round(pr * 4) / 4 : Math.round(pr * 10000) / 10000;
-    return { A, dag, norm, hverdage: hv, lukDage, ferie, ferie6, omsorg, senior, nul, opgListe, ugeFradrag, opg, medBoern, arbejdsuger: arbUger, pr0, korr, pr, afr, difMin: -((pr - afr) * arbUger) * 60 };
+    return { A, A0, dag, norm, normAar, hverdage: hv, lukDage, ferie, ferie6, omsorg, senior, nul, opgListe, ugeFradrag, opg, medBoern, arbejdsuger: arbUger, pr0, korr, pr, afr, difMin: -((pr - afr) * arbUger) * 60 };
 }
 
 /* ---------- tilstand ---------- */
@@ -855,7 +864,7 @@ function csvEksport(S, afd) {
     }
     return rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(';')).join('\r\n');
 }
-if (typeof module !== 'undefined' && module.exports !== undefined) module.exports = { ruleHasAfd, fraevaerKonti, taelFravaer, afbankNy, afbankTaget, afbankExtraMin, timerBeregnet, opgFordeling, opgUgeMin, opgCycleFordelt, kortVagt, afspadForslag, afspadAnvend, afspadFjern, oparbejdetMin, gemOv, opgOversigt, ansaetOf, lukketNavn, setOpgIPlan, HELLIGDAGE_STD, aarsNorm, normAarStart, opgCycleMin, opgWeekMin, nyGrundplanFra, planVersion, idag, ruleViolationsDate, hensynKort, indstFor, ruleDage, bemandingTekst, coverageMatrix, parseTid, parseVagt, personTotals, solve, analyse, coverageIssues, baseItems, effInfo, findAfloeser, dagIdxFor, rotWeek, mondayOf, addDays, fmtVagt, fmtDiff, fmtT, unikVagter, ruleViolations, weekItems, csvEksport, weekMinutes };
+if (typeof module !== 'undefined' && module.exports !== undefined) module.exports = { ansaetPaa, datoForTimer, ruleHasAfd, fraevaerKonti, taelFravaer, afbankNy, afbankTaget, afbankExtraMin, timerBeregnet, opgFordeling, opgUgeMin, opgCycleFordelt, kortVagt, afspadForslag, afspadAnvend, afspadFjern, oparbejdetMin, gemOv, opgOversigt, ansaetOf, lukketNavn, setOpgIPlan, HELLIGDAGE_STD, aarsNorm, normAarStart, opgCycleMin, opgWeekMin, nyGrundplanFra, planVersion, idag, ruleViolationsDate, hensynKort, indstFor, ruleDage, bemandingTekst, coverageMatrix, parseTid, parseVagt, personTotals, solve, analyse, coverageIssues, baseItems, effInfo, findAfloeser, dagIdxFor, rotWeek, mondayOf, addDays, fmtVagt, fmtDiff, fmtT, unikVagter, ruleViolations, weekItems, csvEksport, weekMinutes };
 </script>
 <script>/* ===================== UI ===================== */
 const KEY = 'vagtplan_v1';
@@ -1578,6 +1587,10 @@ function viewOverblik() {
     const fr = [];
     for (const b of S.afbank || []) { const p = S.personer.find(x => x.id === b.personId), rest = b.dage - afbankTaget(S, b); if (p && rest > 0) fr.push({ til: b.til, txt: esc(p.navn) + ': ' + rest + ' af ' + String(b.dage).replace('.', ',') + ' afspadseringsdage mangler at blive holdt', sen: b.til < nu ? 'bad' : addDays(nu, 56) >= b.til ? 'warn' : '' }); }
     for (const a of S.afspad || []) { const p = S.personer.find(x => x.id === a.personId), op = oparbejdetMin(S, a), beh = Math.round(a.timer * 60); if (p && op < beh) fr.push({ til: a.dato, txt: esc(p.navn) + ': afspadsering ' + fmtDK(a.dato) + ' mangler at oparbejde ' + fmtDiff(beh - op) + ' t', sen: a.dato < nu ? 'bad' : 'warn' }); }
+    S.personer.forEach(p => (p.tidsperioder || []).forEach(t => {
+        if (!t.fase && t.fra <= addDays(nu, 56) && t.til >= nu) fr.push({ til: t.fra, txt: esc(p.navn) + ': periode med ændret ansættelse (' + fmtTim(t.ansaet) + ' t/uge) ' + fmtDKY(t.fra) + '\u2013' + fmtDKY(t.til) + ' er ikke lagt i grundplanen', sen: t.fra <= nu ? 'bad' : 'warn' });
+        if (t.fase === 'i gang' && t.til < nu) fr.push({ til: t.til, txt: esc(p.navn) + ': perioden er slut \u2013 tryk \u00ab2. Afslut perioden\u00bb under \u00c5rsnorm for at s\u00e6tte normale vagter tilbage', sen: 'bad' });
+    }));
     fr.sort((a, b) => a.til < b.til ? -1 : 1);
     h += '<div class="panel"><h4>Frister (' + fr.length + ')</h4>' + (fr.length ? '<ul class="lst">' + fr.map(x => '<li class="' + x.sen + '"><b>' + fmtDKY(x.til) + '</b> \u00b7 ' + x.txt + '</li>').join('') + '</ul>' : '<p class="muted">Ingen afspadseringsfrister.</p>') + '</div>';
     /* opgaver 30 dage */
@@ -1768,6 +1781,22 @@ function aarsnormSide(p, y) {
     h += '<h3>Frav\u00e6rskonti</h3><table class="aart"><tr><th>Type</th><th>Ret til</th><th>Brugt</th><th>Tilbage</th></tr>' + KT.filter(k => k.ret || k.brugt).map(k => '<tr><td>' + k.navn + '</td><td class="num">' + t2(k.ret) + '</td><td class="num">' + k.brugt + '</td><td class="num">' + t2(k.tilbage) + '</td></tr>').join('') + '</table></section>';
     return h;
 }
+function perioderHtml() {
+    let h = '<details class="panel" open data-k="perioder"><summary>\u00c6ndret ans\u00e6ttelse i en periode (fx nedsat tid)</summary><p class="muted">Hvis en medarbejder \u00f8nsker at g\u00e5 ned (eller op) i tid i en periode: Registr\u00e9r perioden her. \u00c5rsnormen s\u00e6nkes for de uger, og ferie og helligdage i perioden regnes med periodens dagsnorm (ans\u00e6ttelse \u00f7 5). Timer/uge for perioden beregnes automatisk. Selve vagterne planl\u00e6gges i to trin med knapperne: <b>\u00ab1. Planl\u00e6g perioden\u00bb</b> gemmer den nuv\u00e6rende grundplan og laver forslag til personens vagter med de nye timer fra startdatoen. N\u00e5r du har godkendt eller rettet dem i Grundplan, s\u00e5 tryk <b>\u00ab2. Afslut perioden\u00bb</b>: den gemmer periodens vagter og s\u00e6tter personens normale vagter tilbage fra dagen efter.</p>';
+    h += '<div class="form"><select id="perP">' + S.personer.filter(p => p.timer > 0).map(p => '<option value="' + p.id + '">' + esc(p.navn) + ' (' + esc(p.afd) + ')</option>').join('') + '</select><label>Fra <input type="date" id="perF"></label><label>Til <input type="date" id="perT"></label><label>Ans\u00e6ttelse i perioden <input id="perA" inputmode="decimal" placeholder="timer/uge" style="width:5em"></label><button class="btn pri" data-act="per-add">Tilf\u00f8j</button></div>';
+    const L = []; S.personer.forEach(p => (p.tidsperioder || []).forEach(t => L.push({ p, t }))); L.sort((a, b) => a.t.fra < b.t.fra ? -1 : 1);
+    if (L.length) {
+        h += '<table class="mini"><thead><tr><th>Person</th><th>Fra</th><th>Til</th><th>Ans\u00e6ttelse</th><th>Timer/uge normalt \u2192 i perioden</th><th>Planl\u00e6gning</th><th></th></tr></thead><tbody>';
+        for (const { p, t } of L) {
+            const y = normAarStart(t.fra), T1 = timerBeregnet(S, p, y, '1900-01-01'), T2 = timerBeregnet(S, p, y, t.fra), laast = !!t.fase, f = k => ' data-chg="per-f" data-f="' + k + '" data-p="' + p.id + '" data-id="' + t.id + '"' + (laast ? ' disabled' : '');
+            const status = !t.fase ? '<span class="warn">Ikke lagt i grundplanen</span> <button class="btn sm pri" data-act="per-start" data-p="' + p.id + '" data-id="' + t.id + '">1. Planl\u00e6g perioden</button>'
+                : t.fase === 'i gang' ? '<span class="warn">Forslag lavet \u2013 godkend/ret vagterne i Grundplan</span> <button class="btn sm pri" data-act="per-slut" data-p="' + p.id + '" data-id="' + t.id + '">2. Afslut perioden</button>' : '<span class="good">Afsluttet \u2714</span>';
+            h += '<tr><td>' + esc(p.navn) + '</td><td><input type="date"' + f('fra') + ' value="' + t.fra + '"></td><td><input type="date"' + f('til') + ' value="' + t.til + '"></td><td><input' + f('ansaet') + ' value="' + fmtTim(t.ansaet) + '" style="width:4em"> t (normalt ' + fmtTim(ansaetOf(p)) + ')</td><td class="num">' + fmtTim(T1) + ' \u2192 <b>' + fmtTim(T2) + '</b></td><td>' + status + '</td><td><button class="btn sm" data-act="per-del" data-p="' + p.id + '" data-id="' + t.id + '">Slet</button></td></tr>';
+        }
+        h += '</tbody></table>';
+    }
+    return h + '</details>';
+}
 function viewAarsnorm() {
     if (UI.aar == null) UI.aar = normAarStart(todayISO());
     const y = UI.aar, afd = UI.afd, A = S.aarsnorm;
@@ -1784,6 +1813,7 @@ function viewAarsnorm() {
     }
     h += '<tr class="stue"><td colspan="3">I alt</td><td class="num">' + fmtDiff(sum('norm')) + '</td><td class="num">' + fmtDiff(sum('vagt')) + '</td><td class="num">' + fmtDiff(sum('fravaer')) + '</td><td class="num">' + fmtDiff(sum('luk')) + '</td><td class="num">' + fmtDiff(sum('opg')) + '</td><td class="num">' + fmtDiff(sum('total')) + '</td><td class="num">' + fmtDiff(sum('diff')) + '</td><td></td><td></td></tr>';
     h += '</tbody></table></div>';
+    h += perioderHtml();
     /* fraværskonti */
     const nuI = todayISO(), slutAar = (y + 1) + '-08-31', snartSlut = nuI <= slutAar && addDays(nuI, 56) >= slutAar;
     const kc = r => { const cl = r.ret === 0 && r.brugt === 0 ? 'muted' : r.tilbage < 0 ? 'bad' : r.tilbage === 0 ? 'good' : snartSlut ? 'warn' : ''; return '<td class="ctr ' + cl + '" title="' + r.tilbage + ' tilbage">' + (r.ret === 0 && r.brugt === 0 ? '\u2013' : '<b>' + r.brugt + '</b> af ' + hd(Math.round(r.ret * 10) / 10) + (r.tilbage ? ' <span class="muted">(' + hd(Math.round(r.tilbage * 10) / 10) + ' tilbage)</span>' : ' \u2714')) + '</td>'; };
@@ -1859,17 +1889,22 @@ function viewHensyn() {
     const stF = BF.afd && afdObj(BF.afd) ? afdObj(BF.afd).stuer : [...new Set(S.afdelinger.flatMap(x => x.stuer))];
     const fs = (k, opts, tom) => '<select data-chg="br-filter" data-k="' + k + '"><option value="">' + tom + '</option>' + opts.map(([v, t]) => '<option value="' + esc(v) + '" ' + (BF[k] === v ? 'selected' : '') + '>' + esc(t) + '</option>').join('') + '</select>';
     h += '<div class="form filt"><b>Filtr\u00e9r (' + vis.length + ' af ' + alleR.length + ' regler):</b> ' + fs('afd', S.afdelinger.map(x => [x.id, x.navn]), 'Alle afdelinger') + fs('stue', stF.map(s => [s, s]), 'Alle stuer') + fs('hard', [['skal', 'Skal'], ['gerne', 'Gerne']], 'Skal og gerne') + fs('kval', KV.filter(k => k).map(k => [k, k]).concat([['', 'Uden kvalifikation']]).filter(x => x[0]), 'Alle kvalifikationer') + '<button class="btn sm" data-act="br-filter-nul">Nulstil filter</button></div>';
-    h += '<table class="mini"><thead><tr><th>G\u00e6lder for</th><th>Stue</th><th>Tidsrum</th><th>Mindst</th><th>Kval.</th><th>Dage</th><th>Type</th><th></th></tr></thead><tbody>' + (vis.length ? vis.map(r => {
+    UI.brEdit = UI.brEdit || {};
+    const ruleAfdTxt = r => r.afds ? r.afds.join(' + ') : r.afd;
+    h += '<table class="mini"><thead><tr><th>Afd.</th><th>Regel</th><th>Type</th><th></th></tr></thead><tbody>' + (vis.length ? vis.map(r => {
+        const eks = r.eksempel ? ' <span class="ex">eksempel</span>' : '';
+        let rad = '<tr><td>' + esc(ruleAfdTxt(r)) + '</td><td>' + esc(bemandingTekst(r)) + eks + '</td><td>' + (r.hard === 'skal' ? '<b>Skal</b>' : 'Gerne') + '</td><td><button class="btn sm' + (UI.brEdit[r.id] ? ' pri' : '') + '" data-act="br-ret" data-id="' + r.id + '">' + (UI.brEdit[r.id] ? 'F\u00e6rdig' : 'Ret') + '</button> <button class="btn sm" data-act="hb-del" data-id="' + r.id + '">Slet</button></td></tr>';
+        if (!UI.brEdit[r.id]) return rad;
         const af = afdsOf(r), single = af.length === 1, st = single && afdObj(af[0]) ? afdObj(af[0]).stuer : [], f = k => ' data-chg="br-f" data-f="' + k + '" data-id="' + r.id + '"', dg = ruleDage(r);
-        return '<tr><td>' + S.afdelinger.map(x => '<label class="cb"><input type="checkbox"' + f('afd') + ' data-a="' + esc(x.id) + '" ' + (af.includes(x.id) ? 'checked' : '') + '> ' + esc(x.navn) + '</label>').join(' ') + (r.eksempel ? ' <span class="ex">eksempel</span>' : '') + '</td>'
-            + '<td><select' + f('stue') + (single ? '' : ' disabled') + '><option value="">Hele afdelingen</option>' + st.map(s => '<option ' + (r.stue === s ? 'selected' : '') + '>' + esc(s) + '</option>').join('') + '</select></td>'
-            + '<td><input' + f('fra') + ' value="' + fmtT(r.fra) + '" style="width:4.3em"> \u2013 <input' + f('til') + ' value="' + fmtT(r.til) + '" style="width:4.3em"></td>'
-            + '<td><input' + f('min') + ' type="number" min="1" value="' + r.min + '" style="width:3.4em"></td>'
-            + '<td><select' + f('kval') + '>' + KV.map(k => '<option value="' + esc(k) + '" ' + ((r.kval || '') === k ? 'selected' : '') + '>' + (k || 'alle') + '</option>').join('') + '</select></td>'
-            + '<td class="dg">' + DK.map((t, i) => '<label class="cb" title="' + DT[i] + '"><input type="checkbox"' + f('dag') + ' data-i="' + i + '" ' + (dg.includes(i) ? 'checked' : '') + '>' + t + '</label>').join('') + '</td>'
-            + '<td><select' + f('hard') + '><option value="skal" ' + (r.hard === 'skal' ? 'selected' : '') + '>Skal</option><option value="gerne" ' + (r.hard !== 'skal' ? 'selected' : '') + '>Gerne</option></select></td>'
-            + '<td><button class="btn sm" data-act="hb-del" data-id="' + r.id + '">Slet</button></td></tr>';
-    }).join('') : '<tr><td colspan="8" class="muted">Ingen regler matcher filteret.</td></tr>') + '</tbody></table>';
+        return rad + '<tr class="edit"><td colspan="4"><div class="form"><b>G\u00e6lder for:</b> ' + S.afdelinger.map(x => '<label class="cb"><input type="checkbox"' + f('afd') + ' data-a="' + esc(x.id) + '" ' + (af.includes(x.id) ? 'checked' : '') + '> ' + esc(x.navn) + '</label>').join(' ')
+            + '<select' + f('stue') + (single ? '' : ' disabled') + '><option value="">' + (single ? 'Hele afdelingen' : 'Alle stuer') + '</option>' + st.map(s => '<option ' + (r.stue === s ? 'selected' : '') + '>' + esc(s) + '</option>').join('') + '</select>'
+            + '<label>fra <input' + f('fra') + ' value="' + fmtT(r.fra) + '" style="width:4.5em"></label><label>til <input' + f('til') + ' value="' + fmtT(r.til) + '" style="width:4.5em"></label><label>mindst <input' + f('min') + ' type="number" min="1" value="' + r.min + '" style="width:3.5em"></label>'
+            + '<select' + f('kval') + '>' + KV.map(k => '<option value="' + esc(k) + '" ' + ((r.kval || '') === k ? 'selected' : '') + '>' + (k || 'alle') + '</option>').join('') + '</select>'
+            + '<span class="dg">' + DK.map((t, i) => '<label class="cb" title="' + DT[i] + '"><input type="checkbox"' + f('dag') + ' data-i="' + i + '" ' + (dg.includes(i) ? 'checked' : '') + '>' + t + '</label>').join('') + '</span>'
+            + '<select' + f('hard') + '><option value="skal" ' + (r.hard === 'skal' ? 'selected' : '') + '>Skal</option><option value="gerne" ' + (r.hard !== 'skal' ? 'selected' : '') + '>Gerne</option></select></div></td></tr>';
+    }).join('') : '<tr><td colspan="4" class="muted">Ingen regler matcher filteret.</td></tr>') + '</tbody></table>';
+    /* kopiér regler mellem afdelinger */
+    if (S.afdelinger.length > 1) h += '<div class="form"><b>Kopi\u00e9r regler:</b> fra <select id="kpF">' + S.afdelinger.map((x, i) => '<option value="' + esc(x.id) + '" ' + (i === S.afdelinger.length - 1 ? 'selected' : '') + '>' + esc(x.navn) + '</option>').join('') + '</select> til <select id="kpT">' + S.afdelinger.map((x, i) => '<option value="' + esc(x.id) + '" ' + (i === 0 ? 'selected' : '') + '>' + esc(x.navn) + '</option>').join('') + '</select><button class="btn" data-act="br-kopi">Kopi\u00e9r (erstatter m\u00e5lets regler)</button><span class="muted">Stuer matches efter r\u00e6kkef\u00f8lge (stue 1 til stue 1 osv.). Regler for flere afdelinger flyttes ikke.</span></div>';
     h += '<p class="muted"><span class="ex">eksempel</span> = startv\u00e6rdier jeg har lagt ind for at vise, hvordan det virker. Ret eller slet dem, s\u00e5 de passer til jeres regler.</p></div>';
     h += '<div class="panel"><h4>Andre hensyn (fri tekst – læses ikke af programmet)</h4><textarea id="hTekst" data-chg="htekst" rows="5" placeholder="Fx: Person A kan ikke starte f\u00f8r 8.00 om tirsdagen \u2026">' + esc(S.hensynTekst) + '</textarea></div>';
     return h;
@@ -2037,6 +2072,35 @@ function act(a, t) {
             S.hensyn.bemanding.forEach(r => { if (r.afds) { r.afds = r.afds.filter(x => x !== a.id); if (r.afds.length === 1) { r.afd = r.afds[0]; delete r.afds; } } }); S.hensyn.bemanding = S.hensyn.bemanding.filter(r => r.afd || (r.afds && r.afds.length));
             if (UI.afd === a.id) UI.afd = S.afdelinger[0].id; if (UI.hAfd === a.id) UI.hAfd = null; commit(); render(); toast('Afdelingen er slettet'); break;
         }
+        case 'per-add': {
+            const p = S.personer.find(x => x.id === $('#perP').value), fra = $('#perF').value, til = $('#perT').value, a = parseFloat(String($('#perA').value).replace(',', '.'));
+            if (!p || !fra || !til) { toast('V\u00e6lg person og begge datoer', true); break; } if (til < fra) { toast('Til-datoen ligger f\u00f8r fra-datoen', true); break; }
+            if (!(a > 0 && a <= 48)) { toast('Skriv ans\u00e6ttelsen i perioden i timer pr. uge', true); break; }
+            if ((p.tidsperioder || []).some(t => !(til < t.fra || fra > t.til))) { toast('Perioden overlapper en anden periode for personen', true); break; }
+            snapshot(); (p.tidsperioder = p.tidsperioder || []).push({ id: nyId(S, 't'), fra, til, ansaet: a }); logg('\u00c6ndret ans\u00e6ttelse ' + p.navn + ' ' + fmtDKY(fra) + '\u2013' + fmtDKY(til) + ': ' + fmtTim(a) + ' t/uge'); commit(); render(); toast('Perioden er tilf\u00f8jet. Tryk \u00ab1. Planl\u00e6g perioden\u00bb, n\u00e5r vagterne skal laves.'); break;
+        }
+        case 'per-del': { const p = S.personer.find(x => x.id === d.p), t = p && (p.tidsperioder || []).find(x => x.id === d.id); if (!t) break; if (!confirm('Slet perioden ' + fmtDKY(t.fra) + '\u2013' + fmtDKY(t.til) + '?' + (t.fase ? '\n\nBem\u00e6rk: grundplanens versioner og vagter bliver st\u00e5ende, som de er.' : ''))) break; snapshot(); p.tidsperioder = p.tidsperioder.filter(x => x.id !== d.id); commit(); render(); break; }
+        case 'per-start': {
+            const p = S.personer.find(x => x.id === d.p), t = p && (p.tidsperioder || []).find(x => x.id === d.id); if (!t) break;
+            if (S.gyldigFra && S.gyldigFra > t.fra) { toast('Grundplanen g\u00e6lder allerede fra ' + fmtDKY(S.gyldigFra) + ', som er efter periodens start. Planl\u00e6g perioden som en \u00e6ndring af den grundplan, der g\u00e6lder f\u00f8r.', true); break; }
+            if (!confirm('Planl\u00e6g perioden for ' + p.navn + ' (' + fmtDKY(t.fra) + '\u2013' + fmtDKY(t.til) + ', ' + fmtTim(t.ansaet) + ' t/uge)?\n\n1) Den nuv\u00e6rende grundplan gemmes (uger f\u00f8r ' + fmtDKY(t.fra) + ' \u00e6ndres ikke).\n2) ' + p.navn + 's vagter ryddes, og programmet laver forslag med de nye timer. Forslagene st\u00e5r i kursiv i Grundplan, og du godkender eller retter dem.\n\nFortryd virker.')) break;
+            snapshot();
+            if (!S.gyldigFra || S.gyldigFra < t.fra) { const err = nyGrundplanFra(S, t.fra); if (err) { undoStack.pop(); toast(err, true); break; } }
+            t.orig = { timer: p.timer, start: p.start.slice(), slut: p.slut.slice() }; t.fase = 'i gang';
+            const y = normAarStart(t.fra); if (!p.timerFast) p.timer = timerBeregnet(S, p, y, t.fra);
+            for (let k = 0; k < 8; k++) { p.start[k] = null; p.slut[k] = null; } p.forslag = Array(8).fill(false);
+            const r = solve(S, { mode: 'rest', afds: [p.afd] }); logg('Periode planlagt for ' + p.navn + ' ' + fmtDKY(t.fra) + '\u2013' + fmtDKY(t.til) + ': ' + (r.changed || 0) + ' felter foresl\u00e5et');
+            commit(); UI.afd = p.afd; render(); toast('Perioden er planlagt. G\u00e5 til Grundplan (' + p.afd + '), og godkend eller ret forslagene. Tryk derefter \u00ab2. Afslut perioden\u00bb.'); break;
+        }
+        case 'per-slut': {
+            const p = S.personer.find(x => x.id === d.p), t = p && (p.tidsperioder || []).find(x => x.id === d.id); if (!t || !t.orig) break;
+            const dag1 = addDays(t.til, 1);
+            if (S.gyldigFra && S.gyldigFra >= dag1) { toast('Grundplanen g\u00e6lder allerede fra ' + fmtDKY(S.gyldigFra) + '. Afslut perioden f\u00f8r.', true); break; }
+            if (!confirm('Afslut perioden for ' + p.navn + '?\n\n1) Periodens vagter (som de st\u00e5r nu) gemmes for ' + fmtDKY(t.fra) + '\u2013' + fmtDKY(t.til) + '. Husk, at forslag er godkendt eller rettet f\u00f8rst.\n2) Fra ' + fmtDKY(dag1) + ' s\u00e6ttes ' + p.navn + 's normale vagter og timer tilbage.\n\nFortryd virker.')) break;
+            snapshot(); const err = nyGrundplanFra(S, dag1); if (err) { undoStack.pop(); toast(err, true); break; }
+            p.start = t.orig.start.slice(); p.slut = t.orig.slut.slice(); p.forslag = Array(8).fill(false); p.timer = t.orig.timer; delete t.orig; t.fase = 'afsluttet';
+            logg('Periode afsluttet for ' + p.navn + ': normale vagter sat tilbage fra ' + fmtDKY(dag1)); commit(); render(); toast('Perioden er afsluttet. Normale vagter g\u00e6lder igen fra ' + fmtDKY(dag1)); break;
+        }
         case 'afb-add': {
             const p = S.personer.find(x => x.id === $('#abP').value), dage = parseFloat(String($('#abD').value).replace(',', '.')), fra = $('#abF').value, til = $('#abT').value;
             if (!p || !fra || !til) { toast('V\u00e6lg person og datoer', true); break; }
@@ -2164,6 +2228,18 @@ function act(a, t) {
             if (afs.length === 1) r.afd = afs[0]; else r.afds = afs.slice();
             S.hensyn.bemanding.push(r); commit(); render(); break;
         }
+        case 'br-ret': { UI.brEdit = UI.brEdit || {}; UI.brEdit[d.id] = !UI.brEdit[d.id]; render(); break; }
+        case 'br-kopi': {
+            const fra = afdObj($('#kpF').value), til = afdObj($('#kpT').value);
+            if (!fra || !til || fra.id === til.id) { toast('V\u00e6lg to forskellige afdelinger', true); break; }
+            const kilde = S.hensyn.bemanding.filter(r => r.afd === fra.id), eksist = S.hensyn.bemanding.filter(r => r.afd === til.id).length;
+            if (!kilde.length) { toast(fra.navn + ' har ingen regler at kopiere', true); break; }
+            if (!confirm('Kopi\u00e9r ' + kilde.length + ' regler fra ' + fra.navn + ' til ' + til.navn + '?\n\n' + (eksist ? til.navn + 's nuv\u00e6rende ' + eksist + ' regler bliver erstattet.\n' : '') + 'Stuer matches efter r\u00e6kkef\u00f8lge.')) break;
+            snapshot(); let sprunget = 0, nye = [];
+            kilde.forEach(r => { const c = JSON.parse(JSON.stringify(r)); c.id = nyId(S, 'b'); c.afd = til.id; delete c.afds; delete c.eksempel; if (r.stue) { const ix = fra.stuer.indexOf(r.stue); const ny = ix >= 0 ? til.stuer[ix] : undefined; if (!ny) { sprunget++; return; } c.stue = ny; } S.hensyn.bemanding.push(c); nye.push(c); });
+            S.hensyn.bemanding = S.hensyn.bemanding.filter(r => !(r.afd === til.id && !nye.includes(r))); logg('Regler kopieret fra ' + fra.navn + ' til ' + til.navn);
+            commit(); render(); toast(nye.length + ' regler kopieret til ' + til.navn + (sprunget ? ' (' + sprunget + ' sprunget over, fordi der ikke er en tilsvarende stue)' : '')); break;
+        }
         case 'br-filter-nul': UI.brF = { afd: '', stue: '', hard: '', kval: '' }; render(); break;
         case 'hb-del': snapshot(); S.hensyn.bemanding = S.hensyn.bemanding.filter(x => x.id !== d.id); commit(); render(); break;
         case 'p-add': {
@@ -2210,6 +2286,12 @@ function chg(k, t) {
             const gammel = d.a, nyt = t.value.trim(), fejl = afdNavnFejl(nyt, gammel);
             if (fejl) { toast(fejl, true); render(); break; } if (nyt === gammel) break;
             snapshot(); omdoebAfd(gammel, nyt); logg('Afdelingen ' + gammel + ' omd\u00f8bt til ' + nyt); commit(); render(); toast('Afdelingen hedder nu ' + nyt); break;
+        }
+        case 'per-f': {
+            const p = S.personer.find(x => x.id === d.p), per = p && (p.tidsperioder || []).find(x => x.id === d.id); if (!per || per.fase) break; const f = d.f; snapshot();
+            if (f === 'ansaet') { const v = parseFloat(String(t.value).replace(',', '.')); if (!(v > 0 && v <= 48)) { undoStack.pop(); toast('Ugyldigt timetal', true); render(); break; } per.ansaet = v; }
+            else { if (!t.value) { undoStack.pop(); toast('Datoen mangler', true); render(); break; } const nf = f === 'fra' ? t.value : per.fra, nt = f === 'til' ? t.value : per.til; if (nt < nf) { undoStack.pop(); toast('Til-datoen ligger f\u00f8r fra-datoen', true); render(); break; } per[f] = t.value; }
+            commit(); render(); break;
         }
         case 'opgfrek': { const e = t.value === 'engang'; $('#opgKw').style.display = e ? '' : 'none'; $('#opgTilW').style.display = e ? 'none' : ''; $('#opgHint').textContent = e ? 'Dagen v\u00e6lges i \u00abFra / dato\u00bb. Starttid er valgfri og g\u00f8r, at opgaven ses i ugeplanen p\u00e5 dagen.' : 'Datoer er valgfri (tom = g\u00e6lder altid).'; break; }
         case 'opg-filter': { const F = UI.opgF = UI.opgF || {}; F[d.k] = t.value; if (d.k === 'afd') F.stue = ''; render(); break; }
