@@ -84,6 +84,8 @@ header button.hintbtn{background:transparent;color:#fff;border:1px solid rgba(25
 .printhead{display:none}
 @media print{.printhead{display:block;font-weight:700;font-size:12px;margin:0 0 4px}body.print-grid #panels{display:none!important}body.print-grid .gridwrap{break-after:avoid}}
 
+table.aar td.num,table.aar th{white-space:nowrap}table.aar tr.stue td{background:#d9dde3;font-weight:700}
+
 header{padding-top:max(8px,env(safe-area-inset-top))}main{padding-bottom:max(40px,env(safe-area-inset-bottom))}input,select,textarea{font-size:16px}
 </style></head>
 <body>
@@ -143,14 +145,62 @@ function addDays(iso, n) { const d = parseISO(iso); d.setUTCDate(d.getUTCDate() 
 function weekdayIdx(iso) { return (parseISO(iso).getUTCDay() + 6) % 7; }       // man = 0
 function mondayOf(iso) { return addDays(iso, -weekdayIdx(iso)); }
 function fmtDK(iso) { return iso.slice(8, 10) + '/' + iso.slice(5, 7); }
-function rotWeek(S, mondayIso) {
-    const diff = Math.round((parseISO(mondayIso) - parseISO(mondayOf(S.startDato))) / (7 * 864e5));
+function rotWeekStart(startDato, mondayIso) {
+    const diff = Math.round((parseISO(mondayIso) - parseISO(mondayOf(startDato))) / (7 * 864e5));
     return ((diff % 4) + 4) % 4;
 }
-function dagIdxFor(S, iso) {
+function rotWeek(S, mondayIso) { return rotWeekStart(S.startDato, mondayIso); }
+function dagIdxForStart(startDato, iso) {
     const w = weekdayIdx(iso);
     if (w >= 5) return null;
-    return w < 4 ? w : 4 + rotWeek(S, mondayOf(iso));
+    return w < 4 ? w : 4 + rotWeekStart(startDato, mondayOf(iso));
+}
+function dagIdxFor(S, iso) { return dagIdxForStart(S.startDato, iso); }
+function idag() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+
+/* ---------- grundplan-versioner: gamle uger ændres ikke, når grundplanen ændres ---------- */
+function planVersion(S, iso) {
+    if (!S.gyldigFra || iso >= S.gyldigFra) return null;       // nuværende grundplan
+    const A = S.arkiv || [];
+    for (const a of A) if (a.fra <= iso && iso <= a.til) return a;
+    return A.length ? A[0] : null;
+}
+/* gem nuværende grundplan i arkivet og lad en ny version gælde fra dato */
+function nyGrundplanFra(S, dato) {
+    const fraNu = S.gyldigFra || '1900-01-01';
+    if (dato <= fraNu) return 'Datoen skal v\u00e6re efter den nuv\u00e6rende grundplans startdato (' + fraNu + ').';
+    const pers = {};
+    S.personer.forEach(p => { pers[p.id] = { navn: p.navn, afd: p.afd, stue: p.stue, timer: p.timer, start: p.start.slice(), slut: p.slut.slice() }; });
+    (S.arkiv = S.arkiv || []).push({ fra: fraNu, til: addDays(dato, -1), startDato: S.startDato, pers });
+    S.arkiv.sort((a, b) => a.fra < b.fra ? -1 : 1);
+    S.gyldigFra = dato;
+    return null;
+}
+
+/* ---------- opgaver (personalem\u00f8de, stuem\u00f8der m.m.) ---------- */
+const FREK = { uge: 'pr. uge', '4uger': 'pr. 4. uge', maaned: 'pr. m\u00e5ned', aar: 'pr. \u00e5r', engang: 'engangs (dato)' };
+function opgAktiv(o, iso) { return !((o.fra && o.fra > iso) || (o.til && o.til < iso)); }
+/* minutter pr. 4-ugers grundplan (opgaver der er aktive p\u00e5 datoen; engangsopgaver tages ikke med) */
+function opgCycleMin(p, iso) {
+    let t = 0; iso = iso || idag();
+    for (const o of p.opgaver || []) {
+        if (o.frek === 'engang' || !opgAktiv(o, iso)) continue;
+        const h = (+o.timer || 0) * 60;
+        t += o.frek === 'uge' ? 4 * h : o.frek === '4uger' ? h : o.frek === 'maaned' ? h * 48 / 52 : o.frek === 'aar' ? h * 4 / 52 : 0;
+    }
+    return Math.round(t);
+}
+/* minutter i en bestemt uge (mandag = monday) */
+function opgWeekMin(p, monday, uger) {
+    uger = uger || 52;
+    let t = 0; const sun = addDays(monday, 6);
+    for (const o of p.opgaver || []) {
+        const h = (+o.timer || 0) * 60;
+        if (o.frek === 'engang') { if (o.dato && o.dato >= monday && o.dato <= sun) t += h; continue; }
+        if ((o.fra && o.fra > sun) || (o.til && o.til < monday)) continue;
+        t += o.frek === 'uge' ? h : o.frek === '4uger' ? h / 4 : o.frek === 'maaned' ? h * 12 / uger : o.frek === 'aar' ? h / uger : 0;
+    }
+    return t;
 }
 
 /* ---------- personer ---------- */
@@ -159,8 +209,8 @@ function personTotals(p) {
     for (let d = 0; d < 8; d++) {
         if (p.start[d] != null) { const m = p.slut[d] - p.start[d]; if (d < 4) mt += m; else fr += m; has = true; }
     }
-    const total = 4 * mt + fr, norm = Math.round((p.timer || 0) * 240);
-    return { mt, fr, total, norm, diff: norm - total, fremaal: norm - 4 * mt, has };
+    const total = 4 * mt + fr, norm = Math.round((p.timer || 0) * 240), opg = opgCycleMin(p);
+    return { mt, fr, total, norm, opg, diff: norm - opg - total, fremaal: norm - opg - 4 * mt, has };
 }
 function getBase(p, d) { return p.start[d] != null ? [p.start[d], p.slut[d]] : null; }
 
@@ -217,21 +267,21 @@ function dageTekst(dage) {
     return s.map(d => DAGE[d].toLowerCase()).join(', ');
 }
 function memberOf(rule, p) {
-    return p.afd === rule.afd && (!rule.stue || p.stue === rule.stue) && (!rule.kval || p.kval === rule.kval);
+    return (rule.afd === '*' || p.afd === rule.afd) && (!rule.stue || p.stue === rule.stue) && (!rule.kval || p.kval === rule.kval);
 }
 const ALLE_DAGE = [0, 1, 2, 3, 4, 5, 6, 7];
 function ruleDage(rule) { return rule.dage || ALLE_DAGE; }
 function ruleSlots(rule) { const a = []; for (let m = rule.fra; m < rule.til; m += SLOT_TRIN) a.push(m); return a; }
 function bemandingTekst(rule) {
     const dg = ruleDage(rule), alle = dg.length === 8, mt = dg.length === 4 && dg.join() === '0,1,2,3';
-    return (rule.stue || 'Hele afdelingen ' + rule.afd) + ' ' + fmtT(rule.fra) + '-' + fmtT(rule.til) + ': mindst ' + rule.min + (rule.kval ? ' ' + rule.kval.toLowerCase() : '') + (alle ? '' : ' (' + (mt ? 'man-tors' : dageTekst(dg)) + ')');
+    return (rule.stue || (rule.afd === '*' ? 'Begge afdelinger' : 'Hele afdelingen ' + rule.afd)) + ' ' + fmtT(rule.fra) + '-' + fmtT(rule.til) + ': mindst ' + rule.min + (rule.kval ? ' ' + rule.kval.toLowerCase() : '') + (alle ? '' : ' (' + (mt ? 'man-tors' : dageTekst(dg)) + ')');
 }
 
 /* items: [{label, get:(p)=>[s,e]|null}] -> sammenhængende huller */
 function coverageIssues(S, afd, items) {
     const issues = [];
     for (const rule of S.hensyn.bemanding) {
-        if (rule.afd !== afd) continue;
+        if (rule.afd !== afd && rule.afd !== '*') continue;
         const mem = S.personer.filter(p => memberOf(rule, p));
         const slots = ruleSlots(rule);
         const dg = ruleDage(rule);
@@ -252,7 +302,7 @@ function coverageIssues(S, afd, items) {
     return issues;
 }
 function issueTekst(is) {
-    return is.label + ' · ' + (is.rule.stue || 'Hele afdelingen') + ' ' + fmtT(is.from) + '-' + fmtT(is.to) + ': ' + is.worst + ' af ' + is.rule.min + (is.rule.kval ? ' ' + is.rule.kval.toLowerCase() : '') + (is.rule.hard === 'skal' ? '' : ' (gerne)');
+    return is.label + ' · ' + (is.rule.stue || (is.rule.afd === '*' ? 'Begge afdelinger' : 'Hele afdelingen')) + ' ' + fmtT(is.from) + '-' + fmtT(is.to) + ': ' + is.worst + ' af ' + is.rule.min + (is.rule.kval ? ' ' + is.rule.kval.toLowerCase() : '') + (is.rule.hard === 'skal' ? '' : ' (gerne)');
 }
 function baseItems() { return DAGE.map((n, d) => ({ label: n, get: p => getBase(p, d) })); }
 
@@ -278,8 +328,16 @@ function findAbs(S, pid, iso) {
     return null;
 }
 function effInfo(S, p, iso) {
-    const di = dagIdxFor(S, iso);
-    const base = di == null ? null : getBase(p, di);
+    const ver = planVersion(S, iso);
+    let di, base;
+    if (ver) {
+        di = dagIdxForStart(ver.startDato || S.startDato, iso);
+        const ap = ver.pers[p.id];
+        base = (di != null && ap && ap.start[di] != null) ? [ap.start[di], ap.slut[di]] : null;
+    } else {
+        di = dagIdxFor(S, iso);
+        base = di == null ? null : getBase(p, di);
+    }
     const ovd = S.overstyr[iso];
     const ov = ovd && Object.prototype.hasOwnProperty.call(ovd, p.id) ? ovd[p.id] : undefined;
     const ab = findAbs(S, p.id, iso);
@@ -418,7 +476,7 @@ function solve(S, opts) {
     const hasFree = free.map(a => a.some(Boolean));
     const WH = 8;
     const tot = P.map((p, i) => { let t = 0; for (let d = 0; d < 8; d++) if (cur[i][d]) t += (d < 4 ? 4 : 1) * (cur[i][d][1] - cur[i][d][0]); return t; });
-    const norm = P.map(p => Math.round((p.timer || 0) * 240));
+    const norm = P.map(p => Math.round((p.timer || 0) * 240) - opgCycleMin(p, idag()));
     const hourCost = i => hasFree[i] ? WH * Math.abs(tot[i] - norm[i]) : 0;
     let cost = 0;
     for (let i = 0; i < n; i++) { cost += hourCost(i); for (let d = 0; d < 8; d++) { if (cur[i][d]) { covCost += covApply(i, d, cur[i][d], 1); if (free[i][d]) cost += softPen(i, d, cur[i][d]); } } }
@@ -429,7 +487,7 @@ function solve(S, opts) {
     if (opts.mode === 'rest') {
         P.forEach((p, i) => {
             if (!hasFree[i] || !LIB.length) return;
-            const target = (p.timer || 0) * 12;     // minutter pr. dag
+            const target = (Math.round((p.timer || 0) * 240) - opgCycleMin(p, idag())) / 20;     // minutter pr. dag
             for (let d = 0; d < 8; d++) {
                 if (!free[i][d]) continue;
                 const cands = STDL.filter(x => Math.abs((x[1] - x[0]) - target) <= 45 && hardOK(i, d, x[0], x[1]));
@@ -529,6 +587,35 @@ function indstFor(S) {
     return { aabnerUge: a, lukkerUge: l, open: Array.from({ length: 8 }, (_, d) => a[wd(d)]), close: Array.from({ length: 8 }, (_, d) => l[wd(d)]) };
 }
 
+
+/* ---------- \u00e5rsnorm: 1. september - 31. august ---------- */
+const AARS_STD = { uger: 52, lukCredit: true, taeller: { 'Frav\u00e6r': true, 'Ferie': true, 'Fri': false, 'Kursus': true, 'Andet': true }, lukkedage: [] };
+function normAarStart(iso) { iso = iso || idag(); const y = +iso.slice(0, 4), m = +iso.slice(5, 7); return m >= 9 ? y : y - 1; }
+function aarsNorm(S, p, y) {
+    const o = Object.assign({}, AARS_STD, S.aarsnorm || {});
+    o.taeller = Object.assign({}, AARS_STD.taeller, (S.aarsnorm && S.aarsnorm.taeller) || {});
+    const start = y + '-09-01', end = (y + 1) + '-08-31', nu = idag();
+    const mIdx = iso => ((+iso.slice(5, 7)) + 3) % 12;               // sep = 0 ... aug = 11
+    const r = { norm: Math.round((p.timer || 0) * 60 * o.uger), vagt: 0, fravaer: 0, luk: 0, opg: 0, hidtil: 0, maaned: Array(12).fill(0), fraTyper: {} };
+    const add = (iso, m, bucket) => { r[bucket] += m; r.maaned[mIdx(iso)] += m; if (iso <= nu) r.hidtil += m; };
+    for (let iso = start; iso <= end; iso = addDays(iso, 1)) {
+        if (weekdayIdx(iso) >= 5) continue;
+        if ((o.lukkedage || []).some(l => l.fra <= iso && iso <= l.til)) { if (o.lukCredit) add(iso, Math.round((p.timer || 0) * 60 / 5), 'luk'); continue; }
+        const e = effInfo(S, p, iso);
+        if (e.abs) {
+            if (e.need && o.taeller[e.abs.type] !== false) { const m = e.need[1] - e.need[0]; add(iso, m, 'fravaer'); r.fraTyper[e.abs.type] = (r.fraTyper[e.abs.type] || 0) + m; }
+        } else if (e.shift) add(iso, e.shift[1] - e.shift[0], 'vagt');
+    }
+    let nMon = 0; for (let mon = mondayOf(start); mon <= end; mon = addDays(mon, 7)) if (mon >= start) nMon++;
+    for (let mon = mondayOf(start); mon <= end; mon = addDays(mon, 7)) {
+        if (mon < start) continue;
+        const m = opgWeekMin(p, mon, nMon);
+        if (m) add(mon, m, 'opg');
+    }
+    r.total = r.vagt + r.fravaer + r.luk + r.opg; r.diff = r.norm - r.total;
+    return r;
+}
+
 /* ---------- tilstand ---------- */
 function nyId(S, pre) { S._n = (S._n || 1000) + 1; return pre + S._n; }
 function sorterPersoner(S, afd) {
@@ -540,15 +627,15 @@ function sorterPersoner(S, afd) {
     return res;
 }
 function csvEksport(S, afd) {
-    const rows = [['Stue', 'Navn', 'Timer', ...DAGE, 'Total', 'Norm', 'Forskel', 'Fredage skal give']];
+    const rows = [['Stue', 'Navn', 'Timer', ...DAGE, 'Total', 'Opgaver', 'Norm', 'Forskel', 'Fredage skal give']];
     for (const g of sorterPersoner(S, afd)) for (const p of g.personer) {
         const t = personTotals(p);
         rows.push([g.stue, p.navn, String(p.timer).replace('.', ','), ...DAGE.map((_, d) => p.start[d] != null ? fmtVagt(p.start[d], p.slut[d]) : ''),
-            t.has ? fmtDiff(t.total) : '', t.norm ? fmtDiff(t.norm) : '', t.has && t.norm ? fmtDiff(t.diff) : '', t.has && t.norm ? fmtDiff(t.fremaal) : '']);
+            t.has ? fmtDiff(t.total) : '', t.opg ? fmtDiff(t.opg) : '', t.norm ? fmtDiff(t.norm) : '', t.has && t.norm ? fmtDiff(t.diff) : '', t.has && t.norm ? fmtDiff(t.fremaal) : '']);
     }
     return rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(';')).join('\r\n');
 }
-if (typeof module !== 'undefined' && module.exports !== undefined) module.exports = { ruleViolationsDate, hensynKort, indstFor, ruleDage, bemandingTekst, coverageMatrix, parseTid, parseVagt, personTotals, solve, analyse, coverageIssues, baseItems, effInfo, findAfloeser, dagIdxFor, rotWeek, mondayOf, addDays, fmtVagt, fmtDiff, fmtT, unikVagter, ruleViolations, weekItems, csvEksport, weekMinutes };
+if (typeof module !== 'undefined' && module.exports !== undefined) module.exports = { aarsNorm, normAarStart, opgCycleMin, opgWeekMin, nyGrundplanFra, planVersion, idag, ruleViolationsDate, hensynKort, indstFor, ruleDage, bemandingTekst, coverageMatrix, parseTid, parseVagt, personTotals, solve, analyse, coverageIssues, baseItems, effInfo, findAfloeser, dagIdxFor, rotWeek, mondayOf, addDays, fmtVagt, fmtDiff, fmtT, unikVagter, ruleViolations, weekItems, csvEksport, weekMinutes };
 </script>
 <script>/* ===================== UI ===================== */
 const KEY = 'vagtplan_v1';
@@ -565,7 +652,9 @@ function todayISO() { const d = new Date(); return d.getFullYear() + '-' + Strin
 /* ---------- tilstand ---------- */
 function defaultState() {
     const st = JSON.parse(JSON.stringify(SEED));
-    st.personer.forEach(p => { p.forslag = Array(8).fill(false); });
+    st.personer.forEach(p => { p.forslag = Array(8).fill(false); p.opgaver = []; });
+    st.gyldigFra = ''; st.arkiv = [];
+    st.aarsnorm = JSON.parse(JSON.stringify(AARS_STD));
     st.startDato = '2026-11-02';
     st.indst = { aabner: [380, 380, 380, 380, 380], lukker: [1020, 1020, 1020, 1020, 960] };
     st.fravaer = []; st.overstyr = {}; st.log = []; st.meta = { sidstBackup: null };
@@ -586,6 +675,9 @@ function load() {
     S = defaultState();
 }
 function migrer() {
+    if (!S.arkiv) S.arkiv = []; if (S.gyldigFra == null) S.gyldigFra = '';
+    S.aarsnorm = Object.assign(JSON.parse(JSON.stringify(AARS_STD)), S.aarsnorm || {}); S.aarsnorm.taeller = Object.assign({}, AARS_STD.taeller, S.aarsnorm.taeller || {}); if (!S.aarsnorm.lukkedage) S.aarsnorm.lukkedage = [];
+    (S.personer || []).forEach(p => { if (!p.opgaver) p.opgaver = []; });
     const i = indstFor(S); S.indst = { aabner: i.aabnerUge, lukker: i.lukkerUge };
     /* ingen helbredsoplysninger: neutrale fraværstyper og navne */
     (S.fravaer || []).forEach(f => { if (f.type === 'Syg' || f.type === 'Barns sygedag') f.type = 'Fravær'; });
@@ -975,10 +1067,10 @@ function download(name, text, mime) {
 function timeVal(m) { return m == null ? '' : fmtT(m); }
 
 /* ---------- hovedvisning ---------- */
-const TABS = [['grund', 'Grundplan (4 uger)'], ['uge', 'Ugeplan og fravær'], ['hensyn', 'Hensyn'], ['pers', 'Personer og opsætning'], ['backup', 'Backup og hjælp']];
+const TABS = [['grund', 'Grundplan (4 uger)'], ['uge', 'Ugeplan og fravær'], ['hensyn', 'Hensyn'], ['opg', 'Opgaver'], ['aar', 'Årsnorm'], ['pers', 'Personer og opsætning'], ['backup', 'Backup og hjælp']];
 function render() {
     $('#tabs').innerHTML = TABS.map(([k, n]) => '<button class="tab ' + (UI.tab === k ? 'on' : '') + '" data-act="tab" data-k="' + k + '">' + n + '</button>').join('');
-    const v = { grund: viewGrund, uge: viewUge, hensyn: viewHensyn, pers: viewPersoner, backup: viewBackup }[UI.tab];
+    const v = { grund: viewGrund, uge: viewUge, hensyn: viewHensyn, opg: viewOpgaver, aar: viewAarsnorm, pers: viewPersoner, backup: viewBackup }[UI.tab];
     $('#main').innerHTML = v();
     if (UI.tab === 'grund') updateGrid();
     $('#btnUndo').disabled = !undoStack.length;
@@ -986,6 +1078,11 @@ function render() {
 }
 function afdTabs() { return '<div class="afdtabs">' + S.afdelinger.map(a => '<button class="tab sm ' + (UI.afd === a.id ? 'on' : '') + '" data-act="afd" data-k="' + a.id + '">' + esc(a.navn) + '</button>').join('') + '</div>'; }
 
+function fmtDKY(iso) { return iso && iso > '1901' ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '-' + iso.slice(0, 4) : 'start'; }
+function gpInfo() {
+    const L = S.arkiv || [];
+    return 'Grundplanen g\u00e6lder fra <b>' + (S.gyldigFra ? fmtDKY(S.gyldigFra) : 'start') + '</b>.' + (L.length ? ' Tidligere versioner (fryst): ' + L.map(a => fmtDKY(a.fra) + '\u2013' + fmtDKY(a.til)).join(', ') + '.' : ' \u00c6ndrer du grundplanen, g\u00e6lder det ogs\u00e5 for tidligere uger, medmindre du f\u00f8rst trykker \u00abNy grundplan fra dato\u00bb.');
+}
 /* ================= GRUNDPLAN ================= */
 function viewGrund() {
     const afd = UI.afd, a = afdObj(afd);
@@ -997,17 +1094,18 @@ function viewGrund() {
         + '<button class="btn" data-act="godkend">Godkend forslag</button><button class="btn" data-act="fjernforslag">Fjern forslag</button>'
         + '<button class="btn" data-act="csv">Eksport\u00e9r CSV</button><button class="btn" data-act="print" title="Kun skemaet, \u00e9n side">Udskriv skema</button><button class="btn" data-act="print-alt" title="Skema plus tjek, d\u00e6kning og hensyn">Udskriv alt</button></div>';
     h += '<div class="printhead">Grundplan \u2013 ' + esc(afd) + ' \u00b7 udskrevet ' + new Date().toLocaleDateString('da-DK') + '</div>';
+    h += '<div class="legend">' + gpInfo() + ' <button class="btn sm" data-act="ny-gp" title="Gemmer den nuv\u00e6rende grundplan, s\u00e5 gamle uger ikke \u00e6ndrer sig">Ny grundplan fra dato\u2026</button></div>';
     h += '<div class="legend">Skriv vagter som <b>7.30-15.15</b> (Enter = næste række). <span class="fs">Kursiv med stiplet kant</span> = forslag fra programmet, ikke godkendt endnu. Tom celle = fri. Tallene opdateres med det samme.</div>';
     h += '<div class="gridwrap"><table class="grid" id="grid"><thead><tr><th class="c1">Navn</th><th class="c2">Timer</th>';
     DAGE.forEach((d, i) => { h += '<th class="day ' + (i === 4 ? 'sepl' : '') + '">' + d + '<div class="dt">' + esc(a.dagtekster[i] || '') + '</div></th>'; });
-    h += '<th class="num sepl">Total</th><th class="num">Norm</th><th class="num">Forskel</th><th class="num" title="Hvad de fire fredage tilsammen skal give for at ramme normen">Fredage skal give</th></tr></thead><tbody>';
+    h += '<th class="num sepl" title="Timer i vagterne over de fire uger">Total</th><th class="num" title="Opgavetimer over de fire uger (fanen Opgaver)">Opg.</th><th class="num">Norm</th><th class="num" title="Norm minus opgaver minus vagter">Forskel</th><th class="num" title="Hvad de fire fredage tilsammen skal give for at ramme normen">Fredage skal give</th></tr></thead><tbody>';
     for (const g of sorterPersoner(S, afd)) {
         const sum = g.personer.reduce((t, p) => t + (p.timer || 0), 0);
-        h += '<tr class="stue"><td class="c1" colspan="2">' + esc(g.stue) + ' <span class="muted">' + (sum ? sum.toLocaleString('da-DK') + ' t' : '') + '</span></td><td colspan="12"></td></tr>';
+        h += '<tr class="stue"><td class="c1" colspan="2">' + esc(g.stue) + ' <span class="muted">' + (sum ? sum.toLocaleString('da-DK') + ' t' : '') + '</span></td><td colspan="13"></td></tr>';
         for (const p of g.personer) {
             h += '<tr data-p="' + p.id + '"><td class="c1 nm">' + esc(p.navn) + (p.note ? ' <span class="note" title="Note">(' + esc(p.note) + ')</span>' : '') + (p.auto === false ? ' <span class="note" title="Auto er slået fra: programmet foreslår ikke vagter eller afløsning">· uden auto</span>' : '') + '</td><td class="c2 tm">' + (p.timer ? String(p.timer).replace('.', ',') : '') + '</td>';
             for (let d = 0; d < 8; d++) h += '<td class="' + (d === 4 ? 'sepl' : '') + '"><input class="cell" data-p="' + p.id + '" data-d="' + d + '" data-chg="cell" autocomplete="off"></td>';
-            h += '<td class="num sepl tot"></td><td class="num nrm"></td><td class="num dif"></td><td class="num fre"></td></tr>';
+            h += '<td class="num sepl tot"></td><td class="num opgc"></td><td class="num nrm"></td><td class="num dif"></td><td class="num fre"></td></tr>';
         }
     }
     h += '</tbody></table></div><div id="panels"></div>';
@@ -1028,6 +1126,7 @@ function updateGrid() {
         }
         const t = personTotals(p);
         $('.tot', tr).textContent = t.has ? fmtDiff(t.total) : '';
+        $('.opgc', tr).textContent = t.opg ? fmtDiff(t.opg) : '';
         $('.nrm', tr).textContent = t.norm ? fmtDiff(t.norm) : '';
         const dif = $('.dif', tr), fre = $('.fre', tr), tot = $('.tot', tr);
         dif.textContent = t.has && t.norm ? fmtDiff(t.diff) : '';
@@ -1144,17 +1243,18 @@ function goAuto(mode) {
 function viewUge() {
     const afd = UI.afd, a = afdObj(afd);
     if (!UI.week) UI.week = mondayOf(todayISO());
-    const mon = UI.week, rot = rotWeek(S, mon);
+    const mon = UI.week, ver = planVersion(S, mon), rot = ver ? rotWeekStart(ver.startDato || S.startDato, mon) : rotWeek(S, mon);
     const fk = farveKort(afd);
     let h = '<div class="toolbar">' + afdTabs() + '<span class="sp"></span><button class="btn" data-act="wk" data-n="-1">‹ Forrige uge</button>'
         + '<input type="date" class="dateinp" id="weekPick" data-chg="weekpick" value="' + mon + '"><button class="btn" data-act="wk" data-n="1">Næste uge ›</button><button class="btn" data-act="wk" data-n="0">I dag</button></div>';
     h += '<div class="legend">Uge ' + fmtDK(mon) + '–' + fmtDK(addDays(mon, 4)) + ' · plan-uge <b>' + (rot + 1) + ' af 4</b> (fredag = <b>Fredag ' + (rot + 1) + '</b>). Klik på en celle for at registrere fravær, ændre vagten eller finde afløser. Grundplanen ændres ikke.</div>';
+    if (ver) h += '<div class="legend">Den valgte uge ligger f\u00f8r den nuv\u00e6rende grundplan og bruger derfor den grundplan, der gjaldt ' + fmtDKY(ver.fra) + '\u2013' + fmtDKY(ver.til) + '. Fravær og \u00e6ndringer for ugen er bevaret.</div>';
     const hv = [];
     h += '<div class="gridwrap"><table class="grid week"><thead><tr><th class="c1">Navn</th><th class="c2">Timer</th>';
     for (let k = 0; k < 5; k++) { const iso = addDays(mon, k); h += '<th class="day">' + UGEDAGE[k] + ' <span class="muted">' + fmtDK(iso) + '</span></th>'; }
-    h += '<th class="num sepl">Uge</th><th class="num">Norm/uge</th></tr></thead><tbody>';
+    h += '<th class="num sepl">Vagter</th><th class="num" title="Opgavetimer i ugen">Opg.</th><th class="num">Norm/uge</th></tr></thead><tbody>';
     for (const g of sorterPersoner(S, afd)) {
-        h += '<tr class="stue"><td class="c1" colspan="2">' + esc(g.stue) + '</td><td colspan="7"></td></tr>';
+        h += '<tr class="stue"><td class="c1" colspan="2">' + esc(g.stue) + '</td><td colspan="8"></td></tr>';
         for (const p of g.personer) {
             h += '<tr><td class="c1 nm">' + esc(p.navn) + '</td><td class="c2 tm">' + (p.timer ? String(p.timer).replace('.', ',') : '') + '</td>';
             for (let k = 0; k < 5; k++) {
@@ -1170,8 +1270,8 @@ function viewUge() {
                 else { txt = '<span class="muted">' + (i.over ? 'fri (ændret)' : '·') + '</span>'; if (i.over) c += ' ovr'; }
                 h += '<td class="' + c + '" style="' + st + '" data-act="cell" data-p="' + p.id + '" data-iso="' + iso + '">' + txt + (i.over && i.shift ? ' <span class="pen">✎</span>' : '') + '</td>';
             }
-            const wk = weekMinutes(S, p, mon), nm = Math.round((p.timer || 0) * 60);
-            h += '<td class="num sepl ' + (nm && wk > nm ? 'bad' : nm && wk < nm ? 'good' : '') + '">' + (wk ? fmtDiff(wk) : '') + '</td><td class="num">' + (nm ? fmtDiff(nm) : '') + '</td></tr>';
+            const wk = weekMinutes(S, p, mon), og = opgWeekMin(p, mon), nm = Math.round((p.timer || 0) * 60), sm = wk + og;
+            h += '<td class="num sepl ' + (nm && sm > nm + 1 ? 'bad' : nm && sm < nm - 1 ? 'good' : '') + '">' + (wk ? fmtDiff(wk) : '') + '</td><td class="num">' + (og >= 0.5 ? fmtDiff(og) : '') + '</td><td class="num">' + (nm ? fmtDiff(nm) : '') + '</td></tr>';
         }
     }
     h += '</tbody></table></div>';
@@ -1212,6 +1312,69 @@ function aflDialog(pid, iso) {
     modal(h, 'wide');
 }
 
+
+/* ================= OPGAVER ================= */
+function opgMaalValg() {
+    const per = S.personer.map(p => '<option value="p:' + p.id + '">' + esc(p.navn) + ' (' + esc(p.afd) + ', ' + esc(p.stue) + ')</option>').join('');
+    let grp = '<option value="alle">Alle medarbejdere</option>' + S.afdelinger.map(a => '<option value="a:' + esc(a.id) + '">Alle i ' + esc(a.navn) + '</option>').join('');
+    S.afdelinger.forEach(a => a.stuer.forEach(s => { grp += '<option value="s:' + esc(a.id) + '|' + esc(s) + '">Alle i ' + esc(s) + ' (' + esc(a.id) + ')</option>'; }));
+    return '<optgroup label="Grupper">' + grp + '</optgroup><optgroup label="\u00c9n person">' + per + '</optgroup>';
+}
+function opgPeriode(o) { return o.frek === 'engang' ? (o.dato ? fmtDKY(o.dato) : '') : ((o.fra || o.til) ? (o.fra ? fmtDKY(o.fra) : '') + '\u2013' + (o.til ? fmtDKY(o.til) : '') : 'altid'); }
+function viewOpgaver() {
+    const y = UI.aar != null ? UI.aar : normAarStart(todayISO());
+    let h = '<div class="intro"><b>Opgaver</b> er tid, der ikke er vagter p\u00e5 stuen, fx personalem\u00f8de, stuem\u00f8der eller pr\u00e6parationstid. Opgavetimerne <b>tr\u00e6kkes fra normen</b> i grundplanen (kolonnen Opg.), bruges af <b>Udfyld resten</b>, vises i ugeplanen og <b>tr\u00e6ller med i \u00e5rsnormen</b>.</div>';
+    h += '<div class="panel"><h4>Tilf\u00f8j opgave</h4><div class="form"><select id="opgM">' + opgMaalValg() + '</select>'
+        + '<label>Opgave <input id="opgN" placeholder="fx Personalem\u00f8de" style="width:14em"></label>'
+        + '<label>Timer <input id="opgT" inputmode="decimal" value="1" style="width:4em"></label>'
+        + '<select id="opgF">' + Object.entries(FREK).map(([k, v]) => '<option value="' + k + '">' + v + '</option>').join('') + '</select></div>'
+        + '<div class="form"><label>Fra / dato <input type="date" id="opgFra"></label><label>Til <input type="date" id="opgTil"></label><span class="muted">Datoer er valgfri (tom = g\u00e6lder altid). Ved \u00abengangs\u00bb bruges feltet \u00abFra / dato\u00bb som dagen.</span><button class="btn pri" data-act="opg-add">Tilf\u00f8j</button></div></div>';
+    const med = S.personer.filter(p => (p.opgaver || []).length);
+    h += '<div class="panel"><h4>Oversigt (' + med.length + ' personer har opgaver)</h4>';
+    if (!med.length) h += '<p class="muted">Ingen opgaver endnu.</p>';
+    else {
+        h += '<table class="mini"><thead><tr><th>Person</th><th>Opgave</th><th>Timer</th><th>Hyppighed</th><th>Periode</th><th></th></tr></thead><tbody>';
+        for (const a of S.afdelinger) for (const g of sorterPersoner(S, a.id)) for (const p of g.personer) {
+            const L = p.opgaver || []; if (!L.length) continue;
+            const aar = aarsNorm(S, p, y).opg;
+            h += '<tr class="stue"><td colspan="6"><b>' + esc(p.navn) + '</b> <span class="muted">' + esc(p.stue) + ' \u00b7 pr. 4 uger: ' + fmtDiff(opgCycleMin(p)) + ' t \u00b7 i normåret ' + y + '/' + (y + 1) + ': ' + fmtDiff(aar) + ' t</span></td></tr>';
+            for (const o of L) h += '<tr><td></td><td>' + esc(o.navn) + '</td><td class="ctr">' + String(o.timer).replace('.', ',') + '</td><td>' + esc(FREK[o.frek] || o.frek) + '</td><td>' + esc(opgPeriode(o)) + '</td><td><button class="btn sm" data-act="opg-del" data-p="' + p.id + '" data-id="' + o.id + '">Slet</button></td></tr>';
+        }
+        h += '</tbody></table>';
+    }
+    return h + '</div>';
+}
+
+/* ================= ÅRSNORM ================= */
+const MND = ['Sep', 'Okt', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Aug'];
+function viewAarsnorm() {
+    if (UI.aar == null) UI.aar = normAarStart(todayISO());
+    const y = UI.aar, afd = UI.afd, A = S.aarsnorm;
+    const rows = [];
+    for (const g of sorterPersoner(S, afd)) for (const p of g.personer) if (p.timer > 0) rows.push({ p, stue: g.stue, r: aarsNorm(S, p, y) });
+    const sum = k => rows.reduce((t, x) => t + x.r[k], 0);
+    let h = '<div class="toolbar">' + afdTabs() + '<span class="sp"></span><button class="btn" data-act="aar" data-n="-1">\u2039 Forrige \u00e5r</button><b style="padding:0 10px">1/9-' + y + ' \u2013 31/8-' + (y + 1) + '</b><button class="btn" data-act="aar" data-n="1">N\u00e6ste \u00e5r \u203a</button><button class="btn" data-act="print">Udskriv</button></div>';
+    h += '<div class="legend">\u00c5rsnorm = timer pr. uge \u00d7 <b>' + A.uger + '</b> uger. Medregnet: vagter fra ugeplanen (grundplan + \u00e6ndringer), frav\u00e6r der t\u00e6ller med (se nedenfor), lukkedage' + (A.lukCredit ? ' (som normal dag)' : ' (t\u00e6ller ikke)') + ' og opgavetimer. <b>Mangler</b> = norm minus planlagt; negativt = over normen.</div>';
+    h += '<div class="gridwrap"><table class="mini aar"><thead><tr><th>Navn</th><th>Stue</th><th>Timer/uge</th><th>\u00c5rsnorm</th><th>Vagter</th><th>Frav\u00e6r</th><th>Lukkedage</th><th>Opgaver</th><th>I alt planlagt</th><th>Mangler</th><th title="Planlagt til og med i dag">Hidtil</th></tr></thead><tbody>';
+    for (const x of rows) {
+        const r = x.r;
+        h += '<tr><td>' + esc(x.p.navn) + '</td><td>' + esc(x.stue) + '</td><td class="ctr">' + String(x.p.timer).replace('.', ',') + '</td><td class="num">' + fmtDiff(r.norm) + '</td><td class="num">' + fmtDiff(r.vagt) + '</td><td class="num">' + (r.fravaer ? fmtDiff(r.fravaer) : '') + '</td><td class="num">' + (r.luk ? fmtDiff(r.luk) : '') + '</td><td class="num">' + (r.opg >= 0.5 ? fmtDiff(r.opg) : '') + '</td><td class="num"><b>' + fmtDiff(r.total) + '</b></td><td class="num ' + (Math.round(r.diff) < 0 ? 'bad' : Math.round(r.diff) > 0 ? 'good' : '') + '"><b>' + fmtDiff(r.diff) + '</b></td><td class="num muted">' + fmtDiff(r.hidtil) + '</td></tr>';
+    }
+    h += '<tr class="stue"><td colspan="3">I alt</td><td class="num">' + fmtDiff(sum('norm')) + '</td><td class="num">' + fmtDiff(sum('vagt')) + '</td><td class="num">' + fmtDiff(sum('fravaer')) + '</td><td class="num">' + fmtDiff(sum('luk')) + '</td><td class="num">' + fmtDiff(sum('opg')) + '</td><td class="num">' + fmtDiff(sum('total')) + '</td><td class="num">' + fmtDiff(sum('diff')) + '</td><td></td></tr>';
+    h += '</tbody></table></div>';
+    h += '<details class="panel" open><summary>Timer pr. m\u00e5ned (vagter, frav\u00e6r, lukkedage og opgaver)</summary><div class="gridwrap"><table class="mini aar"><thead><tr><th>Navn</th>' + MND.map(m => '<th>' + m + '</th>').join('') + '<th>I alt</th></tr></thead><tbody>';
+    for (const x of rows) h += '<tr><td>' + esc(x.p.navn) + '</td>' + x.r.maaned.map(m => '<td class="num">' + (m >= 0.5 ? fmtDiff(m) : '') + '</td>').join('') + '<td class="num"><b>' + fmtDiff(x.r.total) + '</b></td></tr>';
+    h += '</tbody></table></div></details>';
+    h += '<details class="panel"><summary>Indstillinger for \u00e5rsnormen</summary><div class="form"><label>Uger i normen <input data-chg="an-uger" value="' + A.uger + '" style="width:4em"></label>'
+        + '<label><input type="checkbox" data-chg="an-luk" ' + (A.lukCredit ? 'checked' : '') + '> Lukkedage t\u00e6ller som normal dag (timer pr. uge \u00f7 5)</label></div>'
+        + '<p><b>Frav\u00e6r der t\u00e6ller med i \u00e5rsnormen</b> (den planlagte vagt p\u00e5 dagen regnes med):</p><div class="form">'
+        + FRAVAER_TYPER.map(t => '<label><input type="checkbox" data-chg="an-typ" data-t="' + esc(t) + '" ' + (A.taeller[t] !== false ? 'checked' : '') + '> ' + esc(t) + '</label>').join('') + '</div>'
+        + '<p><b>Lukkedage</b> (helligdage, sommerlukning, juleferie, \u2026). P\u00e5 disse hverdage laves ingen vagter.</p>'
+        + '<div class="form"><label>Navn <input id="ldN" placeholder="fx Juleferie" style="width:12em"></label><label>Fra <input type="date" id="ldF"></label><label>Til <input type="date" id="ldT"></label><button class="btn pri" data-act="ld-add">Tilf\u00f8j</button></div>'
+        + '<table class="mini"><thead><tr><th>Navn</th><th>Fra</th><th>Til</th><th></th></tr></thead><tbody>' + ((A.lukkedage || []).length ? A.lukkedage.map((l, i) => '<tr><td>' + esc(l.navn || '') + '</td><td>' + fmtDKY(l.fra) + '</td><td>' + fmtDKY(l.til) + '</td><td><button class="btn sm" data-act="ld-del" data-i="' + i + '">Slet</button></td></tr>').join('') : '<tr><td colspan="4" class="muted">Ingen lukkedage endnu.</td></tr>') + '</tbody></table></details>';
+    return h;
+}
+
 /* ================= HENSYN ================= */
 function viewHensyn() {
     const afd = UI.hAfd || S.afdelinger[0].id;
@@ -1231,15 +1394,15 @@ function viewHensyn() {
         + '<div class="form"><label>Note <input id="hpN" placeholder="Valgfri – skriv kun hensynet, ikke årsagen" style="width:24em"></label><button class="btn pri" data-act="hp-add">Tilføj</button></div>';
     h += '<table class="mini"><thead><tr><th>Hensyn</th><th>Type</th><th></th></tr></thead><tbody>' + (S.hensyn.person.length ? S.hensyn.person.map(x => '<tr><td>' + esc(hensynTekst(S, x)) + '</td><td>' + (x.hard === 'skal' ? '<b>Skal</b>' : 'Gerne') + '</td><td><button class="btn sm" data-act="hp-del" data-id="' + x.id + '">Slet</button></td></tr>').join('') : '<tr><td colspan="3" class="muted">Ingen personhensyn endnu. Eksempler: «kan ikke starte før 8.00 om tirsdagen», «fri 12/11».</td></tr>') + '</tbody></table></div>';
     /* bemanding */
-    const a = afdObj(UI.hAfd || afd);
-    h += '<div class="panel"><h4>Mindste bemanding</h4><p class="muted">Red markerer huller i dækningstabellerne, og generatoren forsøger at undgå dem. Lad «Stue» stå på «Hele afdelingen» for fx åbning og lukning, hvor børnene er samlet.</p>'
-        + '<div class="form"><select id="hbA" data-chg="hbA">' + S.afdelinger.map(x => '<option ' + (x.id === (UI.hAfd || afd) ? 'selected' : '') + '>' + x.id + '</option>').join('') + '</select>'
-        + '<select id="hbS"><option value="">Hele afdelingen</option>' + a.stuer.map(s => '<option>' + esc(s) + '</option>').join('') + '</select>'
+    const a = (UI.hAfd || afd) === '*' ? null : afdObj(UI.hAfd || afd);
+    h += '<div class="panel"><h4>Mindste bemanding</h4><p class="muted">Red markerer huller i dækningstabellerne, og generatoren forsøger at undgå dem. Lad «Stue» stå på «Hele afdelingen» for fx åbning og lukning, hvor børnene er samlet. Vælg «Begge afdelinger», hvis kravet gælder på tværs af VS og BH. Skal der være en pædagog, så sæt kvalifikationen på personerne under Personer og opsætning først.</p>'
+        + '<div class="form"><select id="hbA" data-chg="hbA">' + S.afdelinger.map(x => '<option value="' + x.id + '" ' + (x.id === (UI.hAfd || afd) ? 'selected' : '') + '>' + x.id + '</option>').join('') + '<option value="*" ' + ((UI.hAfd || afd) === '*' ? 'selected' : '') + '>Begge afdelinger</option></select>'
+        + '<select id="hbS"><option value="">' + ((UI.hAfd || afd) === '*' ? 'Alle stuer' : 'Hele afdelingen') + '</option>' + (a ? a.stuer.map(s => '<option>' + esc(s) + '</option>').join('') : '') + '</select>'
         + '<label>fra <input id="hbF" value="8.30" style="width:5em"></label><label>til <input id="hbT" value="14.30" style="width:5em"></label><label>mindst <input id="hbM" type="number" min="1" value="2" style="width:4em"></label>'
         + '<select id="hbK"><option value="">alle</option><option>Pædagog</option></select>'
         + '<select id="hbD"><option value="alle">alle dage</option><option value="mt">man–tors</option><option value="fre">fredage</option></select>'
         + '<select id="hbH"><option value="skal">Skal</option><option value="gerne">Gerne</option></select><button class="btn pri" data-act="hb-add">Tilføj</button></div>';
-    h += '<table class="mini"><thead><tr><th>Afd.</th><th>Regel</th><th>Type</th><th></th></tr></thead><tbody>' + S.hensyn.bemanding.map(r => '<tr><td>' + esc(r.afd) + '</td><td>' + esc(bemandingTekst(r)) + (r.eksempel ? ' <span class="ex">eksempel</span>' : '') + '</td><td>' + (r.hard === 'skal' ? '<b>Skal</b>' : 'Gerne') + '</td><td><button class="btn sm" data-act="hb-del" data-id="' + r.id + '">Slet</button></td></tr>').join('') + '</tbody></table>';
+    h += '<table class="mini"><thead><tr><th>Afd.</th><th>Regel</th><th>Type</th><th></th></tr></thead><tbody>' + S.hensyn.bemanding.map(r => '<tr><td>' + (r.afd === '*' ? 'Begge' : esc(r.afd)) + '</td><td>' + esc(bemandingTekst(r)) + (r.eksempel ? ' <span class="ex">eksempel</span>' : '') + '</td><td>' + (r.hard === 'skal' ? '<b>Skal</b>' : 'Gerne') + '</td><td><button class="btn sm" data-act="hb-del" data-id="' + r.id + '">Slet</button></td></tr>').join('') + '</tbody></table>';
     h += '<p class="muted"><span class="ex">eksempel</span> = startværdier jeg har lagt ind for at vise, hvordan det virker. Ret eller slet dem, så de passer til jeres regler.</p></div>';
     h += '<div class="panel"><h4>Andre hensyn (fri tekst – læses ikke af programmet)</h4><textarea id="hTekst" data-chg="htekst" rows="5" placeholder="Fx: Person A kan ikke starte f\u00f8r 8.00 om tirsdagen \u2026">' + esc(S.hensynTekst) + '</textarea></div>';
     return h;
@@ -1312,13 +1475,44 @@ function viewBackup() {
         + '<li><b>Ret fredage til norm:</b> justerer kun fredagene, så timerne går op.</li>'
         + '<li><b>Ugeplan:</b> registrér fravær og find afløser uden at røre grundplanen. Afløseren sættes ind kun for den dag.</li>'
         + '<li><b>Fortryd:</b> knappen øverst fortryder seneste ændring (op til 60 trin i denne session).</li>'
-        + '<li><b>Udskriv:</b> vælg «Gem som PDF» eller en printer; siden er sat op til A4 på tværs.</li></ul></div>';
+        + '<li><b>Udskriv:</b> vælg «Gem som PDF» eller en printer; siden er sat op til A4 på tværs.</li><li><b>Opgaver:</b> skriv fx personalemøde eller stuemøder på en person, en stue eller alle. Timerne trækkes fra normen i grundplanen, bruges af Udfyld resten og tæller med i årsnormen.</li><li><b>Årsnorm:</b> viser timer fra 1/9 til 31/8 pr. person (vagter, fravær, lukkedage og opgaver) mod normen. Indstillinger står under tabellen.</li><li><b>Ny grundplan fra dato:</b> gemmer den nuværende grundplan, så gamle uger ikke ændrer sig, når du retter grundplanen. Fravær (fx ferie) og ændringer i ugeplanen ligger pr. dato og bevares altid.</li></ul></div>';
 }
 
 /* ================= HÆNDELSER ================= */
 function act(a, t) {
     const d = t.dataset;
     switch (a) {
+        case 'ny-gp': {
+            const forslag = addDays(mondayOf(todayISO()), 7);
+            const v = prompt('Den nuv\u00e6rende grundplan gemmes, s\u00e5 uger f\u00f8r denne dato ikke \u00e6ndrer sig.\n\nHvilken dato skal den NYE grundplan g\u00e6lde fra? (\u00e5\u00e5\u00e5\u00e5-mm-dd, gerne en mandag)', forslag);
+            if (!v) break; const dt = v.trim();
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(dt) || isNaN(parseISO(dt))) { toast('Skriv datoen som \u00e5\u00e5\u00e5\u00e5-mm-dd', true); break; }
+            snapshot(); const err = nyGrundplanFra(S, dt);
+            if (err) { undoStack.pop(); toast(err, true); break; }
+            logg('Ny grundplan g\u00e6lder fra ' + dt); commit(); render(); toast('Ny grundplan g\u00e6lder fra ' + fmtDKY(dt) + '. Ret den nu, uden at gamle uger \u00e6ndres.'); break;
+        }
+        case 'aar': UI.aar = (UI.aar != null ? UI.aar : normAarStart(todayISO())) + (+d.n); render(); break;
+        case 'opg-add': {
+            const m = $('#opgM').value, navn = $('#opgN').value.trim(), tim = parseFloat(String($('#opgT').value).replace(',', '.')), fr = $('#opgF').value, f1 = $('#opgFra').value, f2 = $('#opgTil').value;
+            if (!navn || !(tim > 0)) { toast('Skriv et navn og et antal timer', true); break; }
+            if (fr === 'engang' && !f1) { toast('V\u00e6lg dagen for engangsopgaven i feltet \u00abFra / dato\u00bb', true); break; }
+            let mal = [];
+            if (m === 'alle') mal = S.personer.filter(p => p.timer > 0);
+            else if (m.startsWith('a:')) mal = S.personer.filter(p => p.timer > 0 && p.afd === m.slice(2));
+            else if (m.startsWith('s:')) { const [a, s] = m.slice(2).split('|'); mal = S.personer.filter(p => p.timer > 0 && p.afd === a && p.stue === s); }
+            else mal = S.personer.filter(p => 'p:' + p.id === m);
+            if (!mal.length) { toast('Ingen medarbejdere at give opgaven til', true); break; }
+            snapshot();
+            mal.forEach(p => { const o = { id: nyId(S, 'o'), navn, timer: tim, frek: fr }; if (fr === 'engang') o.dato = f1; else { if (f1) o.fra = f1; if (f2) o.til = f2; } (p.opgaver = p.opgaver || []).push(o); });
+            logg('Opgave \u00ab' + navn + '\u00bb (' + String(tim).replace('.', ',') + ' t ' + FREK[fr] + ') tilf\u00f8jet til ' + mal.length + ' person(er)'); commit(); render(); toast('Opgaven er tilf\u00f8jet til ' + mal.length + ' person(er)'); break;
+        }
+        case 'opg-del': { const p = S.personer.find(x => x.id === d.p); if (!p) break; snapshot(); p.opgaver = (p.opgaver || []).filter(o => o.id !== d.id); commit(); render(); break; }
+        case 'ld-add': {
+            const navn = $('#ldN').value.trim(), f = $('#ldF').value, t = $('#ldT').value || f;
+            if (!f) { toast('V\u00e6lg en fra-dato', true); break; } if (t < f) { toast('Til-datoen ligger f\u00f8r fra-datoen', true); break; }
+            snapshot(); S.aarsnorm.lukkedage.push({ navn, fra: f, til: t }); S.aarsnorm.lukkedage.sort((a, b) => a.fra < b.fra ? -1 : 1); commit(); render(); break;
+        }
+        case 'ld-del': snapshot(); S.aarsnorm.lukkedage.splice(+d.i, 1); commit(); render(); break;
         case 'tab': UI.tab = d.k; render(); break;
         case 'ver-save': verSave(($('#vNavn') || {}).value); break;
         case 'ver-open': verOpen(d.id); break;
@@ -1402,7 +1596,7 @@ function act(a, t) {
         case 'p-add': {
             const n = $('#np-n-' + d.a).value.trim(), st = $('#np-s-' + d.a).value, ti = parseFloat($('#np-t-' + d.a).value.replace(',', '.'));
             if (!n || !(ti > 0)) { toast('Skriv navn og timer pr. uge', true); break; }
-            snapshot(); S.personer.push({ id: nyId(S, 'p'), navn: n, afd: d.a, stue: st, timer: ti, note: '', kval: '', auto: true, start: Array(8).fill(null), slut: Array(8).fill(null), forslag: Array(8).fill(false) });
+            snapshot(); S.personer.push({ id: nyId(S, 'p'), navn: n, afd: d.a, stue: st, timer: ti, note: '', kval: '', auto: true, opgaver: [], start: Array(8).fill(null), slut: Array(8).fill(null), forslag: Array(8).fill(false) });
             commit(); render(); toast(n + ' tilføjet – udfyld vagter i Grundplan'); break;
         }
         case 'p-del': {
@@ -1433,6 +1627,9 @@ function chg(k, t) {
         case 'weekpick': if (t.value) { UI.week = mondayOf(t.value); render(); } break;
         case 'start': if (t.value) { snapshot(); S.startDato = t.value; commit(); toast('Gemt'); } break;
         case 'dbxkey': localStorage.setItem('vagtplan_dbxkey', t.value.trim()); toast('App key gemt'); break;
+        case 'an-uger': { const v = parseInt(t.value, 10); if (!(v >= 40 && v <= 60)) { toast('Skriv et antal uger mellem 40 og 60', true); render(); break; } snapshot(); S.aarsnorm.uger = v; commit(); render(); break; }
+        case 'an-luk': snapshot(); S.aarsnorm.lukCredit = t.checked; commit(); render(); break;
+        case 'an-typ': snapshot(); S.aarsnorm.taeller[d.t] = t.checked; commit(); render(); break;
         case 'msid': localStorage.setItem('vagtplan_msid', t.value.trim()); toast('Program-id gemt'); break;
         case 'htekst': S.hensynTekst = t.value; commit(); break;
         case 'indst': {
@@ -1459,7 +1656,7 @@ function chg(k, t) {
         case 'dtekst': snapshot(); afdObj(d.a).dagtekster[+d.i] = t.value; commit(); break;
         case 'bkfile': {
             const f = t.files[0]; if (!f) return; const rd = new FileReader();
-            rd.onload = () => { try { const x = JSON.parse(rd.result); if (!x.personer || !x.afdelinger) throw 0; snapshot(); adoptState(x); commit(); render(); toast('Backup indlæst'); } catch (e) { toast('Filen ligner ikke en vagtplan-backup', true); } };
+            rd.onload = () => { try { const x = JSON.parse(rd.result); if (!x.personer || !x.afdelinger) throw 0; snapshot(); adoptState(x); migrer(); render(); toast('Backup indlæst'); } catch (e) { toast('Filen ligner ikke en vagtplan-backup', true); } };
             rd.readAsText(f); break;
         }
     }
