@@ -846,17 +846,29 @@ async function dbxToken() {
         DB.needLogin = true; DB.ok = false; return null;
     }
 }
-async function dbxRead() {
+async function dbxFejl(r, hvad) { let t = ''; try { t = (await r.text()).replace(/\s+/g, ' ').slice(0, 220); } catch (e) { } return new Error('Dropbox (' + hvad + ') svarede ' + r.status + (t ? ': ' + t : '')); }
+async function dbxReq(kind, text) {
     const t = await dbxToken(); if (!t) throw new Error('login');
-    const r = await fetch(DBXC.content + '/2/files/download', { method: 'POST', headers: { Authorization: 'Bearer ' + t, 'Dropbox-API-Arg': JSON.stringify({ path: '/vagtplan-data.json' }) } });
+    const arg = kind === 'download' ? { path: '/vagtplan-data.json' } : { path: '/vagtplan-data.json', mode: 'overwrite', mute: true };
+    const hdr = { Authorization: 'Bearer ' + t, 'Dropbox-API-Arg': JSON.stringify(arg) };
+    if (kind === 'upload') hdr['Content-Type'] = 'application/octet-stream';
+    let r = await fetch(DBXC.content + '/2/files/' + kind, { method: 'POST', headers: hdr, body: kind === 'upload' ? text : undefined });
+    if (r.status !== 400) return r;
+    const first = await r.text().catch(() => '');
+    /* alternativ m\u00e5de (anbefalet af Dropbox til browsere): argumenterne i adressen i stedet for s\u00e6rlige headere */
+    const url = DBXC.content + '/2/files/' + kind + '?arg=' + encodeURIComponent(JSON.stringify(arg)) + '&authorization=' + encodeURIComponent('Bearer ' + t) + '&reject_cors_preflight=true';
+    r = await fetch(url, { method: 'POST', headers: kind === 'upload' ? { 'Content-Type': 'text/plain; charset=dropbox-cors-hack' } : {}, body: kind === 'upload' ? text : undefined });
+    if (r.status === 400) { const second = await r.text().catch(() => ''); throw new Error('Dropbox svarede 400: ' + (first || second).replace(/\s+/g, ' ').slice(0, 220)); }
+    return r;
+}
+async function dbxErr(r) { const b = await r.text().catch(() => ''); return new Error('Dropbox svarede ' + r.status + (b ? ': ' + b.replace(/\s+/g, ' ').slice(0, 220) : '')); }
+async function dbxRead() {
+    const r = await dbxReq('download');
     if (r.status === 409) return null;                      // filen findes ikke endnu
-    if (!r.ok) throw new Error('Dropbox svarede ' + r.status);
+    if (!r.ok) throw await dbxErr(r);
     try { const x = JSON.parse(await r.text()); return x && x.personer && x.afdelinger ? x : null; } catch (e) { return null; }
 }
-async function dbxPut(text) {
-    const t = await dbxToken(); if (!t) throw new Error('login');
-    return fetch(DBXC.content + '/2/files/upload', { method: 'POST', headers: { Authorization: 'Bearer ' + t, 'Dropbox-API-Arg': JSON.stringify({ path: '/vagtplan-data.json', mode: 'overwrite', mute: true }), 'Content-Type': 'application/octet-stream' }, body: text });
-}
+async function dbxPut(text) { return dbxReq('upload', text); }
 async function dbxCheckNewer() {
     const x = await dbxRead(); if (!x) return;
     const fT = (x.meta && x.meta.savedAt) || '', mine = (S.meta && S.meta.savedAt) || '';
@@ -881,7 +893,7 @@ async function dbxWrite(force) {
         S.meta.savedAt = new Date().toISOString();
         try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { }
         const r = await dbxPut(JSON.stringify(S));
-        if (!r.ok) throw new Error('Dropbox svarede ' + r.status);
+        if (!r.ok) throw await dbxFejl(r, 'gem');
         DB.lastSeen = S.meta.savedAt; DB.lastSaved = new Date(); DB.err = null; DB.offline = false;
     } catch (e) {
         if (e instanceof TypeError) { DB.offline = true; DB.err = 'ingen forbindelse'; }
